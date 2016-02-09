@@ -1,5 +1,5 @@
 #!/usr/bin/env python3.5
-# Last Modified: 2016.02.08 /coding: utf-8
+# Last Modified: 2016.02.09 /coding: utf-8
 # Copyright: © 2016 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -60,8 +60,8 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 	all_report_types = set([
 		'all',
 		'summary',
-		'weekly_summary',
-		'sprint_summary',
+		'weekly-summary',
+		'sprint-summary',
 		'daily',
 		'weekly',
 		'activity',
@@ -222,6 +222,8 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 
 		if self.cli_opts.be_verbose:
 			log.setLevel(logging.DEBUG)
+		elif self.cli_opts.show_sql:
+			log.setLevel(logging.INFO)
 		else:
 			log.setLevel(logging.WARNING)
 
@@ -277,11 +279,11 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 			self.cli_opts.do_list_types = HR_Argparser.weekly_report
 		else:
 			self.cli_opts.do_list_types = set(self.cli_opts.do_list_types)
-			if 'weekly_summary' in self.cli_opts.do_list_types:
+			if 'weekly-summary' in self.cli_opts.do_list_types:
 				self.cli_opts.do_list_types = self.cli_opts.do_list_types.union(
 					HR_Argparser.weekly_report
 				)
-			if 'sprint_summary' in self.cli_opts.do_list_types:
+			if 'sprint-summary' in self.cli_opts.do_list_types:
 				self.cli_opts.do_list_types = self.cli_opts.do_list_types.union(
 					HR_Argparser.sprint_report
 				)
@@ -347,6 +349,8 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		except Exception as err:
 			log.fatal('Report failed: %s' % (str(err),))
 			sys.exit(1)
+
+		self.check_integrity()
 
 		if ((self.cli_opts.do_list_all)
 			or ('all' in self.cli_opts.do_list_types)
@@ -435,6 +439,21 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		self.curs = None
 		self.conn = None
 
+	def check_integrity(self):
+		sql_select = "SELECT COUNT(*) FROM facts WHERE end_time IS NULL"
+		try:
+			self.curs.execute(sql_select)
+			count = self.curs.fetchone()
+			if count[0] not in (0, 1):
+				log.fatal('Unexpected count: %s / query: %s' % (count[0], sql_select,))
+				sys.exit(1)
+		except Exception as err:
+			log.fatal('SQL statement failed: %s' % (str(err),))
+			log.fatal('sql_select: %s' % (sql_select,))
+
+		# FIXME/LATER/#XXX: Check for gaps. If lots of facts, maybe just check
+		# facts in specified time.
+
 	# All the SQL functions fit to output.
 
 	# NOTE: Ideally, we'd not trust user input and all self.curs.execute
@@ -446,7 +465,8 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 	#       but we're really running
 	#         $ sqlite3 --version
 	#         3.10.1 2016-01-13 21:41:56
-	#       and the printf command was added in 3.8.3. tl;dr too late ha
+	#       and the printf command was added in 3.8.3. tl;dr too late ha!
+	#       (Also python3.5 from deadsnakes also uses 3.8.2.)
 	SQL_EXTERNAL = True
 	sqlite_v = sqlite3.sqlite_version.split('.')
 	if (
@@ -460,7 +480,9 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 	# CAVEAT: This hack will strip characters if number of characters exceeds
 	# the substr bounds. So leave one more than expected -- if you don't see
 	# a leading blank, be suspicious.
-	SQL_DURATION="substr('       ' || printf('%.3f', sum(duration)), -8, 8)"
+	SQL_DURATION = "substr('       ' || printf('%.3f', sum(duration)), -8, 8)"
+
+	SQL_CATEGORY_FMTS = "substr('            ' || category_name, -12, 12)"
 
 	def setup_sql_day_of_week(self):
 		self.sql_day_of_week = (
@@ -606,7 +628,7 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 
 	def print_output_generic_fcn_name(self, sql_select, use_header=False):
 		if self.cli_opts.show_sql:
-			log.debug(sql_select)
+			log.info(sql_select)
 
 		if not Hamsterer.SQL_EXTERNAL:
 			try:
@@ -650,8 +672,18 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 							n_facts += 1
 					#print('No. facts found: %d' % (n_facts,))
 				if True:
-					ret = subprocess.run(sql_args, stderr=subprocess.PIPE)
-					# ret.stdout is None because everything went to stdout.
+					# ret.stdout will be None because everything goes to stdout.
+					#ret = subprocess.run(sql_args, stderr=subprocess.PIPE)
+					# Or we can capture stdout instead and strip that first blank line.
+					ret = subprocess.run(sql_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+					# Process stdout.
+					outlns = ret.stdout.decode("utf-8").split('\n')
+					for outln in outlns:
+						if outln:
+							print(outln)
+
+					# Process errors.
 					errlns = ret.stderr.decode("utf-8").split('\n')
 					# These are some stderrs [lb's] .sqliterc trigger...
 					re_loading_resource = re.compile(r'^-- Loading resources from /home/.*/.sqliterc$')
@@ -674,9 +706,13 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 				log.fatal('err.output: %s' % (err.output,))
 				raise
 
-	def list_all(self):
+	def setup_sql_setup(self):
 		self.sql_params = []
 		self.str_params = {}
+		self.str_params['SQL_CATEGORY_FMTS'] = Hamsterer.SQL_CATEGORY_FMTS
+
+	def list_all(self):
+		self.setup_sql_setup()
 		self.setup_sql_day_of_week()
 		self.setup_sql_categories()
 		self.setup_sql_dates()
@@ -709,12 +745,12 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		""" % self.str_params
 		print()
 		print('ALL FACTS')
-		print('=========')
+		#print('=========')
+		print('===============================================================')
 		self.print_output_generic_fcn_name(sql_select)
 
 	def setup_sql_fact_durations(self):
-		self.sql_params = []
-		self.str_params = {}
+		self.setup_sql_setup()
 		self.setup_sql_day_of_week()
 		self.setup_sql_week_starts()
 		self.setup_sql_categories()
@@ -723,18 +759,21 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		self.setup_sql_activities()
 		# Note: julianday returns a float, so multiple by units you want,
 		#       *24 gives you hours, or *86400 gives you seconds.
+		# Note: The current activity's end_time is NULL, so put in NOW.
 		self.sql_fact_durations = """
 			SELECT
-				24.0 * (julianday(facts.end_time) - julianday(facts.start_time)) AS duration
+				CASE WHEN facts.end_time IS NOT NULL
+				THEN 24.0 * (julianday(facts.end_time) - julianday(facts.start_time))
+				ELSE 24.0 * (julianday('now', 'localtime') - julianday(facts.start_time))
+				END AS duration
 				--, strftime('%%Y-%%m-%%d', facts.start_time) AS yrjul
 				, strftime('%%Y-%%j', facts.start_time) AS yrjul
--- ??? try day_of_week2
-				, cast(strftime('%%w', facts.start_time) as integer) as day_of_week
-				, cast(julianday(start_time) as integer) as julian_day_group
-				, case when (cast(strftime('%%w', facts.start_time) as integer) - %(SQL_WEEK_STARTS)s) >= 0
-				  then (cast(strftime('%%w', facts.start_time) as integer) - %(SQL_WEEK_STARTS)s)
-				  else (7 - %(SQL_WEEK_STARTS)s + cast(strftime('%%w', facts.start_time) as integer))
-				  end as psuedo_week_offset
+				, CAST(strftime('%%w', facts.start_time) as integer) as day_of_week
+				, CAST(julianday(start_time) as integer) as julian_day_group
+				, CASE WHEN (CAST(strftime('%%w', facts.start_time) as integer) - %(SQL_WEEK_STARTS)s) >= 0
+				  THEN (CAST(strftime('%%w', facts.start_time) as integer) - %(SQL_WEEK_STARTS)s)
+				  ELSE (7 - %(SQL_WEEK_STARTS)s + CAST(strftime('%%w', facts.start_time) AS integer))
+				  END AS psuedo_week_offset
 				, categories.search_name AS category_name
 				--, categories.name AS category_name
 				, activities.name AS activity_name
@@ -773,7 +812,8 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 	def list_daily_per_activity(self):
 		print()
 		print('DAILY ACTIVITY TOTALS')
-		print('=====================')
+		#print('=====================')
+		print('===============================================================')
 		self.setup_sql_fact_durations()
 		sql_select = """
 			SELECT
@@ -781,7 +821,7 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 				, strftime('%%Y-%%m-%%d', min(julianday(start_time)))
 				, %(SQL_DURATION)s as duration
 				--, category_name
-				, substr('            ' || category_name, -12, 12)
+				, %(SQL_CATEGORY_FMTS)s
 				, activity_name
 				, tag_names
 			FROM (%(SQL_FACT_DURATIONS)s) AS project_time
@@ -793,14 +833,15 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 	def list_daily_per_category(self):
 		print()
 		print('DAILY CATEGORY TOTALS')
-		print('=====================')
+		#print('=====================')
+		print('===============================================================')
 		self.setup_sql_fact_durations()
 		sql_select = """
         SELECT
 			%(SQL_DAY_OF_WEEK)s
             , strftime('%%Y-%%m-%%d', min(julianday(start_time))) AS start_time
             , %(SQL_DURATION)s AS duration
-            , category_name
+			, %(SQL_CATEGORY_FMTS)s
 			, tag_names
         FROM (%(SQL_FACT_DURATIONS)s) AS project_time
         GROUP BY yrjul, category_name
@@ -811,7 +852,8 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 	def list_daily_totals(self):
 		print()
 		print('DAILY TOTALS')
-		print('============')
+		#print('============')
+		print('===============================================================')
 		self.setup_sql_fact_durations()
 		sql_select = """
         SELECT
@@ -832,7 +874,7 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		week_num_unit='sprint_num',
 	):
 		self.setup_sql_fact_durations()
-		self.str_params['SQL_JULIAN_WEEK'] = "cast(%s / 7 as integer)" % (
+		self.str_params['SQL_JULIAN_WEEK'] = "CAST(%s / 7 as integer)" % (
 			sql_julian_day_of_year,
 		)
 		group_bys = ['julianweek',]
@@ -842,7 +884,7 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		group_bys.append('tag_names')
 		if group_by_categories:
 			group_bys.append('category_name')
-			sql_select_extra += ", substr('            ' || category_name, -12, 12)"
+			sql_select_extra += ", %(SQL_CATEGORY_FMTS)s" % self.str_params
 			sql_order_by_extra += ', category_name'
 		if group_by_activities:
 			group_bys.append('activity_name')
@@ -882,21 +924,25 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 			) AS project_time
 			ORDER BY start_date %(ORDER_BY_EXTRA)s
 			""" % self.str_params
-		self.print_output_generic_fcn_name(sql_select, use_header=True)
-		#self.print_output_generic_fcn_name(sql_select, use_header=False)
+		#self.print_output_generic_fcn_name(sql_select, use_header=True)
+		print('wkd|start_date|w|duration|category_nom|activitiy_name|tag_names')
+		print('---|----------|-|--------|------------|--------------|---------')
+		#      tue|2016-02-09|6|   0.167|    personal|Bathroom|
+		self.print_output_generic_fcn_name(sql_select, use_header=False)
 
 	SQL_JDOY_OFFSET_SUNSAT = (
 		"""(
 		julianday(start_time)
 		- julianday(strftime('%Y-01-01', start_time))
-		+ cast(strftime('%w', strftime('%Y-01-01', start_time)) AS integer)
+		+ CAST(strftime('%w', strftime('%Y-01-01', start_time)) AS integer)
 		)"""
 	)
 
 	def list_satsun_weekly_wrap(self, subtitle, cats, acts):
 		print()
 		print('SUN-SAT WEEKLY %s TOTALS' % (subtitle,))
-		print('===============%s=======' % ('=' * len(subtitle),))
+		#print('===============%s=======' % ('=' * len(subtitle),))
+		print('===============================================================')
 		sql_julian_day_of_year = Hamsterer.SQL_JDOY_OFFSET_SUNSAT
 		self.list_weekly_wrap(sql_julian_day_of_year,
 			group_by_categories=cats,
@@ -925,7 +971,8 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 	def list_sprint_weekly_wrap(self, subtitle, cats, acts):
 		print()
 		print('SPRINT WEEKLY %s TOTALS' % (subtitle,))
-		print('==============%s=======' % ('=' * len(subtitle),))
+		#print('==============%s=======' % ('=' * len(subtitle),))
+		print('===============================================================')
 		sql_julian_day_of_year = Hamsterer.SQL_JDOY_OFFSET
 		self.list_weekly_wrap(sql_julian_day_of_year,
 			group_by_categories=cats,
