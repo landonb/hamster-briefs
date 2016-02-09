@@ -5,15 +5,13 @@
 
 # LATER/#XXX: Add monthlies, yearlies, and foreverlies.
 # LATER/#XXX: Add daily/weekly/monthly charts/reports.
-# LATER/#XXX: Add current activity into reporting
-#               OR (facts.end_time is NULL)
-#               and then set end_time to NOW where it's null.
 # LATER/#XXX: (time-of-)day-starts feature (default now is 12AM).
 # LATER/#XXX: split day-split facts. currently fact is counted for next day?
 # LATER/#XXX: Check for gaps feature.
 # LATER/#XXX: Double-check time math is inclusive and doesn't round down on minutes...
 #             though this might make a day's activities greater than exactly 24 hours?
-# LATER/#XXX: Option to print comments/description when itemizing.
+# LATER/#XXX: Option to print description when itemizing, e.g., for search-by-tag.
+#             - For weeklies, would group_concat work?
 #             - Which means using list-all with a search query and maybe dates...
 # LATER/#XXX: --only-date or something to specify a 24 hour period?
 
@@ -59,7 +57,6 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 
 	all_report_types = set([
 		'all',
-		'summary',
 		'weekly-summary',
 		'sprint-summary',
 		'daily',
@@ -76,27 +73,32 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 		'weekly-sprint',
 		'weekly-activity',
 		'weekly-category',
+		'weekly-totals',
 		'weekly-activity-satsun',
 		'weekly-category-satsun',
+		'weekly-totals-satsun',
 		'weekly-activity-sprint',
 		'weekly-category-sprint',
+		'weekly-totals-sprint',
 	])
 
-	weekly_report = set([
+	weekly_report = [
 		'daily-activity',
 		'daily-category',
 		'daily-totals',
 		'weekly-activity-satsun',
 		'weekly-category-satsun',
-	])
+		'weekly-totals-satsun',
+	]
 
-	sprint_report = set([
+	sprint_report = [
 		'daily-activity',
 		'daily-category',
 		'daily-totals',
 		'weekly-activity-sprint',
 		'weekly-category-sprint',
-	])
+		'weekly-totals-sprint',
+	]
 
 	# 0 is Sunday; 6 is Saturday.
 	weekday_lookup_1_char = {
@@ -275,19 +277,6 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 				% (os.path.expanduser('~'),)
 			)
 
-		if self.cli_opts.do_list_types is None:
-			self.cli_opts.do_list_types = HR_Argparser.weekly_report
-		else:
-			self.cli_opts.do_list_types = set(self.cli_opts.do_list_types)
-			if 'weekly-summary' in self.cli_opts.do_list_types:
-				self.cli_opts.do_list_types = self.cli_opts.do_list_types.union(
-					HR_Argparser.weekly_report
-				)
-			if 'sprint-summary' in self.cli_opts.do_list_types:
-				self.cli_opts.do_list_types = self.cli_opts.do_list_types.union(
-					HR_Argparser.sprint_report
-				)
-
 		if self.cli_opts.prev_weeks is not None:
 			# 0: today, 1: this week, 2: this week and last, 4: month, 5: 2 months.
 			#today = time.time()
@@ -305,12 +294,16 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 				#start_date = today
 				self.cli_opts.time_beg = today.isoformat()
 				#self.cli_opts.time_beg = start_date.isoformat()
+				if self.cli_opts.do_list_types is None:
+					self.cli_opts.do_list_types = ['daily',]
 			else:
 				#self.cli_opts.time_end = today.isoformat()
 				# Python says Monday is 0 and Sunday is 6;
 				# Sqlite3 says Sunday 0 and Saturday 6.
 				weekday = (today.weekday() + 1) % 7
-				days_ago = abs(weekday - self.cli_opts.week_starts)
+				days_ago = weekday - self.cli_opts.week_starts
+				if days_ago < 0:
+					days_ago += 7
 				if self.cli_opts.prev_weeks == 1:
 					# Calculate back to week start.
 					start_date = today - datetime.timedelta(days_ago)
@@ -332,8 +325,84 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 						% (self.cli_opts.prev_weeks,)
 					)
 				self.cli_opts.time_beg = start_date.isoformat()
+				if self.cli_opts.do_list_types is None:
+					if self.cli_opts.week_starts:
+						self.cli_opts.do_list_types = ['sprint-summary',]
+					else:
+						self.cli_opts.do_list_types = ['weekly-summary',]
+
+		if self.cli_opts.do_list_types is None:
+			self.cli_opts.do_list_types = HR_Argparser.weekly_report
+		self.setup_do_list_types()
 
 		return ok
+
+	def setup_do_list_types_add(self, list_type):
+		if list_type not in self.setup_seen_types:
+			self.setup_seen_types.add(list_type)
+			self.setup_list_types.append(list_type)
+
+	def setup_do_list_types(self):
+		ok = True
+		self.setup_seen_types = set()
+		self.setup_list_types = []
+		for list_type in self.cli_opts.do_list_types:
+			# Ignoring: list_type == 'all'
+			#  See: self.cli_opts.do_list_all
+			# Hahaha, this block is ridiculous.
+			if list_type == 'weekly-summary':
+				for report_type in HR_Argparser.weekly_report:
+					self.setup_do_list_types_add(report_type)
+			elif list_type == 'sprint-summary':
+				for report_type in HR_Argparser.sprint_report:
+					self.setup_do_list_types_add(report_type)
+			elif list_type == 'daily':
+				self.setup_do_list_types_add('daily-activity')
+				self.setup_do_list_types_add('daily-category')
+				self.setup_do_list_types_add('daily-totals')
+			elif list_type == 'weekly':
+				self.setup_do_list_types_add('weekly-activity-satsun')
+				self.setup_do_list_types_add('weekly-category-satsun')
+				self.setup_do_list_types_add('weekly-totals-satsun')
+				self.setup_do_list_types_add('weekly-activity-sprint')
+				self.setup_do_list_types_add('weekly-category-sprint')
+				self.setup_do_list_types_add('weekly-totals-sprint')
+			elif list_type == 'activity':
+				self.setup_do_list_types_add('daily-activity')
+				self.setup_do_list_types_add('weekly-activity-satsun')
+				self.setup_do_list_types_add('weekly-activity-sprint')
+			elif list_type == 'category':
+				self.setup_do_list_types_add('daily-category')
+				self.setup_do_list_types_add('weekly-category-satsun')
+				self.setup_do_list_types_add('weekly-category-sprint')
+			elif list_type == 'totals':
+				self.setup_do_list_types_add('daily-totals')
+				self.setup_do_list_types_add('weekly-totals-satsun')
+				self.setup_do_list_types_add('weekly-totals-sprint')
+			elif list_type in ['satsun', 'weekly-satsun',]:
+				self.setup_do_list_types_add('weekly-activity-satsun')
+				self.setup_do_list_types_add('weekly-category-satsun')
+				self.setup_do_list_types_add('weekly-totals-satsun')
+			elif list_type in ['sprint', 'weekly-sprint',]:
+				self.setup_do_list_types_add('weekly-activity-sprint')
+				self.setup_do_list_types_add('weekly-category-sprint')
+				self.setup_do_list_types_add('weekly-totals-sprint')
+			elif list_type == 'weekly-activity':
+				self.setup_do_list_types_add('weekly-activity-satsun')
+				self.setup_do_list_types_add('weekly-activity-sprint')
+			elif list_type == 'weekly-category':
+				self.setup_do_list_types_add('weekly-category-satsun')
+				self.setup_do_list_types_add('weekly-category-sprint')
+			elif list_type == 'weekly-totals':
+				self.setup_do_list_types_add('weekly-totals-satsun')
+				self.setup_do_list_types_add('weekly-totals-sprint')
+			else:
+				# Not a group type.
+				self.setup_do_list_types_add(list_type)
+		# end: for list_type in self.cli_opts.do_list_types
+		self.cli_opts.do_list_types = self.setup_list_types
+		return ok
+		# end: setup_do_list_types
 
 class Hamsterer(argparse_wrap.Simple_Script_Base):
 
@@ -357,83 +426,13 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		):
 			self.list_all()
 
-		unknown_types = self.cli_opts.do_list_types.difference(HR_Argparser.all_report_types)
+		list_types_set = set(self.cli_opts.do_list_types)
+		unknown_types = list_types_set.difference(HR_Argparser.all_report_types)
 		if unknown_types:
 			log.warning('Unknown print list display output types: %s' % (unknown_types,))
 
-		# MAYBE: Go through self.cli_opts.do_list_types in order and print in that order.
-
-		if (('daily' in self.cli_opts.do_list_types)
-			or ('activity' in self.cli_opts.do_list_types)
-			or ('daily-activity' in self.cli_opts.do_list_types)
-		):
-			self.list_daily_per_activity()
-
-		if (('daily' in self.cli_opts.do_list_types)
-			or ('category' in self.cli_opts.do_list_types)
-			or ('daily-category' in self.cli_opts.do_list_types)
-		):
-			self.list_daily_per_category()
-
-		if (('daily' in self.cli_opts.do_list_types)
-			or ('totals' in self.cli_opts.do_list_types)
-			or ('daily-totals' in self.cli_opts.do_list_types)
-		):
-			self.list_daily_totals()
-
-		if (('weekly' in self.cli_opts.do_list_types)
-			or ('activity' in self.cli_opts.do_list_types)
-			or ('satsun' in self.cli_opts.do_list_types)
-			or ('weekly-activity' in self.cli_opts.do_list_types)
-			or ('weekly-satsun' in self.cli_opts.do_list_types)
-			or ('weekly-activity-satsun' in self.cli_opts.do_list_types)
-		):
-			self.list_satsun_weekly_per_activity()
-
-		if (('weekly' in self.cli_opts.do_list_types)
-			or ('category' in self.cli_opts.do_list_types)
-			or ('satsun' in self.cli_opts.do_list_types)
-			or ('weekly-category' in self.cli_opts.do_list_types)
-			or ('weekly-satsun' in self.cli_opts.do_list_types)
-			or ('weekly-category-satsun' in self.cli_opts.do_list_types)
-		):
-			self.list_satsun_weekly_per_category()
-
-		if (('weekly' in self.cli_opts.do_list_types)
-			or ('totals' in self.cli_opts.do_list_types)
-			or ('satsun' in self.cli_opts.do_list_types)
-			or ('weekly-totals' in self.cli_opts.do_list_types)
-			or ('weekly-satsun' in self.cli_opts.do_list_types)
-			or ('weekly-totals-satsun' in self.cli_opts.do_list_types)
-		):
-			self.list_satsun_weekly_totals()
-
-		if (('weekly' in self.cli_opts.do_list_types)
-			or ('activity' in self.cli_opts.do_list_types)
-			or ('sprint' in self.cli_opts.do_list_types)
-			or ('weekly-activity' in self.cli_opts.do_list_types)
-			or ('weekly-sprint' in self.cli_opts.do_list_types)
-			or ('weekly-activity-sprint' in self.cli_opts.do_list_types)
-		):
-			self.list_sprint_weekly_per_activity()
-
-		if (('weekly' in self.cli_opts.do_list_types)
-			or ('category' in self.cli_opts.do_list_types)
-			or ('sprint' in self.cli_opts.do_list_types)
-			or ('weekly-category' in self.cli_opts.do_list_types)
-			or ('weekly-sprint' in self.cli_opts.do_list_types)
-			or ('weekly-category-sprint' in self.cli_opts.do_list_types)
-		):
-			self.list_sprint_weekly_per_category()
-
-		if (('weekly' in self.cli_opts.do_list_types)
-			or ('totals' in self.cli_opts.do_list_types)
-			or ('sprint' in self.cli_opts.do_list_types)
-			or ('weekly-totals' in self.cli_opts.do_list_types)
-			or ('weekly-sprint' in self.cli_opts.do_list_types)
-			or ('weekly-totals-sprint' in self.cli_opts.do_list_types)
-		):
-			self.list_sprint_weekly_totals()
+		for list_type in self.cli_opts.do_list_types:
+			self.process_list_type(list_type)
 
 		self.conn.close()
 		self.curs = None
@@ -453,6 +452,28 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 
 		# FIXME/LATER/#XXX: Check for gaps. If lots of facts, maybe just check
 		# facts in specified time.
+
+	def process_list_type(self, list_type):
+		if list_type == 'daily-activity':
+			self.list_daily_per_activity()
+		elif list_type == 'daily-category':
+			self.list_daily_per_category()
+		elif list_type == 'daily-totals':
+			self.list_daily_totals()
+		elif list_type == 'weekly-activity-satsun':
+			self.list_satsun_weekly_per_activity()
+		elif list_type == 'weekly-category-satsun':
+			self.list_satsun_weekly_per_category()
+		elif list_type == 'weekly-totals-satsun':
+			self.list_satsun_weekly_totals()
+		elif list_type == 'weekly-activity-sprint':
+			self.list_sprint_weekly_per_activity()
+		elif list_type == 'weekly-category-sprint':
+			self.list_sprint_weekly_per_category()
+		elif list_type == 'weekly-totals-sprint':
+			self.list_sprint_weekly_totals()
+		else:
+			log.warning('Not a list_type: %s' % (list_type,))
 
 	# All the SQL functions fit to output.
 
@@ -560,7 +581,6 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		else:
 			self.str_params['SQL_TAG_NAMES'] = self.sql_tag_names_
 
-	# LATER/#XXX:
 	def setup_sql_week_starts(self):
 		self.str_params['SQL_WEEK_STARTS'] = self.cli_opts.week_starts
 
@@ -773,7 +793,7 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 				, CASE WHEN (CAST(strftime('%%w', facts.start_time) as integer) - %(SQL_WEEK_STARTS)s) >= 0
 				  THEN (CAST(strftime('%%w', facts.start_time) as integer) - %(SQL_WEEK_STARTS)s)
 				  ELSE (7 - %(SQL_WEEK_STARTS)s + CAST(strftime('%%w', facts.start_time) AS integer))
-				  END AS psuedo_week_offset
+				  END AS pseudo_week_offset
 				, categories.search_name AS category_name
 				--, categories.name AS category_name
 				, activities.name AS activity_name
@@ -867,6 +887,14 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		""" % self.str_params
 		self.print_output_generic_fcn_name(sql_select)
 
+	SQL_WEEK_START_JDAY = (
+		"""
+		julianday(start_time)
+		- pseudo_week_offset
+		+ 7
+		"""
+	)
+
 	def list_weekly_wrap(self,
 		sql_julian_day_of_year,
 		group_by_categories=False,
@@ -874,21 +902,28 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		week_num_unit='sprint_num',
 	):
 		self.setup_sql_fact_durations()
-		self.str_params['SQL_JULIAN_WEEK'] = "CAST(%s / 7 as integer)" % (
+		self.str_params['SQL_JULIAN_WEEK'] = "CAST((%s) / 7 as integer)" % (
 			sql_julian_day_of_year,
 		)
 		group_bys = ['julianweek',]
 		sql_select_extra = ''
 		sql_order_by_extra = ''
+		header_cols = 'wkd|start_date|w|duration'
+		header_dash = '---|----------|-|--------'
 		#if self.cli_opts.categories or self.cli_opts.query:
-		group_bys.append('tag_names')
+		if group_by_activities:
+			group_bys.append('tag_names')
 		if group_by_categories:
 			group_bys.append('category_name')
 			sql_select_extra += ", %(SQL_CATEGORY_FMTS)s" % self.str_params
+			header_cols += '|category_nom'
+			header_dash += '|------------'
 			sql_order_by_extra += ', category_name'
 		if group_by_activities:
 			group_bys.append('activity_name')
 			sql_select_extra += ', activity_name'
+			header_cols += '|activitiy_name'
+			header_dash += '|--------------'
 			sql_order_by_extra += ', activity_name'
 		if False: # Something like this?:
 			if self.cli_opts.activities or self.cli_opts.query:
@@ -897,7 +932,10 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 				group_bys.append('tags')
 			if self.cli_opts.query:
 				group_bys.append('query')
-		sql_select_extra += ', tag_names'
+		if group_by_activities:
+			sql_select_extra += ', tag_names'
+			header_cols += '|tag_names'
+			header_dash += '|---------'
 		sql_group_by = "GROUP BY %s" % (', '.join(group_bys),)
 		self.str_params['FIRST_SPRINT_WEEK_NUM'] = self.cli_opts.first_sprint_week_num
 		self.str_params['WEEK_NUM_UNIT'] = week_num_unit
@@ -907,14 +945,19 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		sql_select = """
 			SELECT
 				%(SQL_DAY_OF_WEEK)s
+				-- This might be weekly ordering look funny:
 				, strftime('%%Y-%%m-%%d', start_time) AS start_date
-				--, julianweek
+				-- So maybe try this:
+				--, strftime('%%Y-%%m-%%d', start_week) AS start_date
+				----, julianweek
+				--, strftime('%%Y-%%m-%%d', start_week) AS start_week
 				, julianweek - %(FIRST_SPRINT_WEEK_NUM)s AS %(WEEK_NUM_UNIT)s
 				, duration
 				%(SELECT_EXTRA)s
 			FROM (
 				SELECT
-					min(julianday(start_time)) AS start_time
+					min(julianday(start_time)) AS real_start_time
+					, julianday(start_time) - pseudo_week_offset AS start_time
 					, %(SQL_JULIAN_WEEK)s AS julianweek
 					, %(SQL_DURATION)s AS duration
 					, tag_names
@@ -924,18 +967,21 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 			) AS project_time
 			ORDER BY start_date %(ORDER_BY_EXTRA)s
 			""" % self.str_params
-		#self.print_output_generic_fcn_name(sql_select, use_header=True)
-		print('wkd|start_date|w|duration|category_nom|activitiy_name|tag_names')
-		print('---|----------|-|--------|------------|--------------|---------')
+		##self.print_output_generic_fcn_name(sql_select, use_header=True)
+		#print('wkd|start_date|w|duration|category_nom|activitiy_name|tag_names')
+		#print('---|----------|-|--------|------------|--------------|---------')
+		print(header_cols)
+		print(header_dash)
 		#      tue|2016-02-09|6|   0.167|    personal|Bathroom|
 		self.print_output_generic_fcn_name(sql_select, use_header=False)
 
-	SQL_JDOY_OFFSET_SUNSAT = (
-		"""(
+	SQL_WEEK_START_DNUM = (
+		# LATER/#XXX: Add clock time to stamp for self.cli_opts.day_starts
+		"""
 		julianday(start_time)
 		- julianday(strftime('%Y-01-01', start_time))
 		+ CAST(strftime('%w', strftime('%Y-01-01', start_time)) AS integer)
-		)"""
+		"""
 	)
 
 	def list_satsun_weekly_wrap(self, subtitle, cats, acts):
@@ -943,7 +989,7 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		print('SUN-SAT WEEKLY %s TOTALS' % (subtitle,))
 		#print('===============%s=======' % ('=' * len(subtitle),))
 		print('===============================================================')
-		sql_julian_day_of_year = Hamsterer.SQL_JDOY_OFFSET_SUNSAT
+		sql_julian_day_of_year = Hamsterer.SQL_WEEK_START_DNUM
 		self.list_weekly_wrap(sql_julian_day_of_year,
 			group_by_categories=cats,
 			group_by_activities=acts,
@@ -959,13 +1005,9 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 	def list_satsun_weekly_totals(self):
 		self.list_satsun_weekly_wrap('TOTAL', False, False)
 
-	SQL_JDOY_OFFSET = (
-		"""(
-		julianday(start_time)
-		- psuedo_week_offset
-		+ 7
-		- julianday(strftime('%Y-01-01', start_time))
-		)"""
+	SQL_WEEK_START_DNUM = (
+		"%s - julianday(strftime('%%Y-01-01', start_time))"
+		% (SQL_WEEK_START_JDAY,)
 	)
 
 	def list_sprint_weekly_wrap(self, subtitle, cats, acts):
@@ -973,7 +1015,7 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		print('SPRINT WEEKLY %s TOTALS' % (subtitle,))
 		#print('==============%s=======' % ('=' * len(subtitle),))
 		print('===============================================================')
-		sql_julian_day_of_year = Hamsterer.SQL_JDOY_OFFSET
+		sql_julian_day_of_year = Hamsterer.SQL_WEEK_START_DNUM
 		self.list_weekly_wrap(sql_julian_day_of_year,
 			group_by_categories=cats,
 			group_by_activities=acts,
