@@ -1,6 +1,6 @@
-#############
-HAMSTER BRIEF
-#############
+##############
+HAMSTER BRIEFS
+##############
 
 *For hamster.db time reporting and summarization.*
 
@@ -9,7 +9,7 @@ Usage
 
 .. code-block:: bash
 
-    ./hamster_brief.py -c "a_category" --this-week
+    ./hamster_briefs.py -c "a_category" --this-week
 
 Installation
 ============
@@ -21,7 +21,7 @@ Usage
 
 .. code-block:: bash
 
-    $ hamster_brief.py --help
+    $ hamster_briefs.py --help
 
     usage: Hamster.db Analysis Tool [-h] [-v] [-b BEG_DATE] [-e END_DATE]
                                     [-c CATEGORY] [-a ACTIVITY] [-t TAG] [-0] [-1]
