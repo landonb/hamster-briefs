@@ -4,7 +4,8 @@
 #  vim:tw=0:ts=4:sw=4:noet
 
 # LATER/#XXX: Add monthlies, yearlies, and foreverlies.
-# LATER/#XXX: Add daily/weekly/monthly charts/reports.
+# LATER/#XXX: Export/compile daily/weekly/monthly charts/reports
+#             and show pie charts, spiffy!
 # LATER/#XXX: (time-of-)day-starts feature (default now is 12AM).
 # LATER/#XXX: split day-split facts. currently fact is counted for next day?
 # LATER/#XXX: Check for gaps feature.
@@ -357,9 +358,11 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 				for report_type in HR_Argparser.sprint_report:
 					self.setup_do_list_types_add(report_type)
 			elif list_type == 'daily':
-				self.setup_do_list_types_add('daily-activity')
-				self.setup_do_list_types_add('daily-category')
+				#self.setup_do_list_types_add('daily-activity')
+				#self.setup_do_list_types_add('daily-category')
 				self.setup_do_list_types_add('daily-totals')
+				self.setup_do_list_types_add('daily-category')
+				self.setup_do_list_types_add('daily-activity')
 			elif list_type == 'weekly':
 				self.setup_do_list_types_add('weekly-activity-satsun')
 				self.setup_do_list_types_add('weekly-category-satsun')
