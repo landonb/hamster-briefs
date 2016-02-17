@@ -1,5 +1,6 @@
 #!/usr/bin/env python3.5
-# Last Modified: 2016.02.09 /coding: utf-8
+# (Using py3.5 for subprocess.run().)
+# Last Modified: 2016.02.16 /coding: utf-8
 # Copyright: © 2016 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -153,13 +154,13 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 		self.add_argument('-0', '--today', dest='prev_weeks',
 			action='store_const', const=0,
 		)
-		self.add_argument('-1', '--current-week', dest='prev_weeks',
+		self.add_argument('-1', '--this-week', dest='prev_weeks',
 			action='store_const', const=1,
 		)
 		self.add_argument('-2', '--last-two-weeks', dest='prev_weeks',
 			action='store_const', const=2,
 		)
-		self.add_argument('-4', '--current-month', dest='prev_weeks',
+		self.add_argument('-4', '--this-month', dest='prev_weeks',
 			action='store_const', const=4,
 		)
 		self.add_argument('-5', '--last-two-months', dest='prev_weeks',
