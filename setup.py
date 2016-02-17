@@ -1,4 +1,7 @@
-#  vim:tw=0:ts=4:sw=4:noet
+# vim:tw=0:ts=4:sw=4:noet
+#
+# FIXME: 2016-02-16: This setup script is untested...
+#        Here are some possibly useful notes:
 #
 # To generate
 #
@@ -7,7 +10,6 @@
 # /usr/lib/python2.7/dist-packages/setuptools/command/
 #
 # https://pypi.python.org/pypi/setuptools
-#
 #
 # easy_install http://example.com/path/to/MyPackage-1.2.3.tgz
 # easy_install /my_downloads/OtherPackage-3.2.1-py2.3.egg
@@ -20,13 +22,13 @@
 from setuptools import setup
 
 setup(
-	name='hamster_brief',
+	name='hamster_briefs',
 	version='0.1.0',
 	author='Landon Bouma',
 	author_email='landonb@retrosoft.com',
-	packages=['hamster_brief',],
+	packages=['hamster_briefs',],
 	#scripts=['bin/nothing_here.py',],
-	url='https://github.com/landonb/hamster_brief',
+	url='https://github.com/landonb/hamster_briefs',
 	license='LICENSE.txt',
 	description='hamster.db analysis tool',
 	long_description=open('README.rst').read(),
