@@ -69,8 +69,8 @@ Options
     $ hamster_briefs.py --help
 
     usage: Hamster.db Analysis Tool [-h] [-v] [-b BEG_DATE] [-e END_DATE]
-                                    [-c CATEGORY] [-a ACTIVITY] [-t TAG] [-0] [-1]
-                                    [-2] [-4] [-5] [-A] [-r REPORT_TYPE] [-S]
+                                    [-c CATEGORY] [-a ACTIVITY] [-t TAG] [-X] [-0]
+                                    [-1] [-2] [-4] [-5] [-r REPORT_TYPE] [-A] [-S]
                                     [-vv] [-w DAY_WEEK_STARTS]
                                     [-W FIRST_SPRINT_WEEK_NUM]
                                     [-D HAMSTER_DB_PATH]
@@ -83,6 +83,7 @@ Options
       -c CATEGORY, --category CATEGORY
       -a ACTIVITY, --activity ACTIVITY
       -t TAG, --tag TAG
+      -X, --and             if True, must match activities AND tags names, else OR
       -0, --today
       -1, --this-week
       -2, --last-two-weeks
