@@ -4,36 +4,6 @@
 # Copyright: © 2016 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
-# LATER/#XXX: Add monthlies, yearlies, and foreverlies.
-# LATER/#XXX: Export/compile daily/weekly/monthly charts/reports
-#             and show pie charts, spiffy!
-# LATER/#XXX: (time-of-)day-starts feature (default now is 12AM).
-# LATER/#XXX: split day-split facts. currently fact is counted for next day?
-# LATER/#XXX: Check for gaps feature.
-# LATER/#XXX: Double-check time math is inclusive and doesn't round down on minutes...
-#             though this might make a day's activities greater than exactly 24 hours?
-# LATER/#XXX: Option to print description when itemizing, e.g., for search-by-tag.
-#             - For weeklies, would group_concat work?
-#             - Which means using list-all with a search query and maybe dates...
-# LATER/#XXX: --only-date or something to specify a 24 hour period?
-
-# FIXME/MAYBE/TRACK: 2016.01.28: [lb] sees the same entry twice -- I corrected
-# and entry but there's the old row and the new row, both with the same
-# start time... so maybe order by reverse start_time and keep the latest one?
-#
-# Note the sqlite3's group by selects an arbitrary row and we want the most
-# recent row, so we gotta figure out the max id first.
-#   select max_id from (
-#     select max(id) as max_id from facts
-#     where start_time > datetime('2016-01-26')
-#       and end_time < datetime('2016-01-27')
-#     group by start_time
-#   ) as max
-#   join facts on (max.max_id = facts.id)
-#   order by start_time desc
-#
-# select * from (  select max(id) as max_id from facts  where start_time > datetime('2016-01-26')    and end_time < datetime('2016-01-27')  group by start_time) as max join facts on (max.max_id = facts.id) order by start_time desc;
-
 import os
 import sys
 
@@ -55,12 +25,19 @@ log = logging.getLogger('argparse_wrap')
 SCRIPT_DESC = 'Hamster.db Analysis Tool'
 SCRIPT_VERS = 'X' # '0.1'
 
+# DEVs: Set to True for better error message if sqlite3 query fails.
+LEAK_SQLITE3_ERRORS=True
+LEAK_SQLITE3_ERRORS=False
+
 class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 
 	all_report_types = set([
 		'all',
+		'gross',
 		'weekly-summary',
 		'sprint-summary',
+		'weekly-tight',
+		'sprint-tight',
 		'daily',
 		'weekly',
 		'activity',
@@ -82,7 +59,16 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 		'weekly-activity-sprint',
 		'weekly-category-sprint',
 		'weekly-totals-sprint',
+		'gross-activity',
+		'gross-category',
+		'gross-totals',
 	])
+
+	gross_report = [
+		'gross-activity',
+		'gross-category',
+		'gross-totals',
+	]
 
 	weekly_report = [
 		'daily-activity',
@@ -164,6 +150,9 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 		)
 		self.add_argument('-2', '--last-two-weeks', dest='prev_weeks',
 			action='store_const', const=2,
+		)
+		self.add_argument('-3', '--two-week-summary', dest='prev_weeks',
+			action='store_const', const=3,
 		)
 		self.add_argument('-4', '--this-month', dest='prev_weeks',
 			action='store_const', const=4,
@@ -314,7 +303,7 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 				if self.cli_opts.prev_weeks == 1:
 					# Calculate back to week start.
 					start_date = today - datetime.timedelta(days_ago)
-				elif self.cli_opts.prev_weeks == 2:
+				elif self.cli_opts.prev_weeks in [2,3,]:
 					# Calculate to two weeks backs ago.
 					start_date = today - datetime.timedelta(7 + days_ago)
 				elif self.cli_opts.prev_weeks == 4:
@@ -333,14 +322,56 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 					)
 				self.cli_opts.time_beg = start_date.isoformat()
 
+		add_list_types = []
+		if (self.cli_opts.do_list_types is None
+			and self.cli_opts.prev_weeks is None
+			and self.cli_opts.time_beg
+			and self.cli_opts.time_end
+		):
+			time_beg = HR_Argparser.str2datetime(self.cli_opts.time_beg)
+			time_end = HR_Argparser.str2datetime(self.cli_opts.time_end)
+			if time_beg and time_end:
+				# The the datetime.timedelta.
+				time_diff = time_end - time_beg
+				# We could check seconds if we cared for more precision.
+				if time_diff.days == 0:
+					self.cli_opts.do_list_types = ['daily',]
+				elif time_diff.days > 7:
+					add_list_types += ['gross',]
 		if self.cli_opts.do_list_types is None:
 			if self.cli_opts.week_starts:
-				self.cli_opts.do_list_types = ['sprint-summary',]
+				if self.cli_opts.prev_weeks in [1,2,]:
+					self.cli_opts.do_list_types = ['sprint-report',]
+				else:
+					self.cli_opts.do_list_types = ['sprint-summary',]
 			else:
-				self.cli_opts.do_list_types = ['weekly-summary',]
+				if self.cli_opts.prev_weeks in [1,2,]:
+					self.cli_opts.do_list_types = ['weekly-report',]
+				else:
+					self.cli_opts.do_list_types = ['weekly-summary',]
+			self.cli_opts.do_list_types += add_list_types
 		self.setup_do_list_types()
 
 		return ok
+
+	# MEH: This is really more of a utility class method...
+	@staticmethod
+	def str2datetime(time_str):
+		dtobj_1 = None
+		dtobj_2 = None
+		date_parser = re.compile(r'(\d+)[^\d]+(\d+)[^\d]+(\d+)\s+(\d+)[^\d]+(\d+)')
+		rem = date_parser.match(time_str)
+		tup = rem.groups() if rem else None
+		if tup:
+			try:
+				strpfmt = '%Y-%m-%d %H:%M'
+				dtobj_1 = datetime.datetime.strptime('%s-%s-%s %s:%s' % tup, strpfmt)
+				# params: year, month, day, hour=0, minute=0, second=0, microsecond=0, tzinfo=None
+				dtobj_2 = datetime.datetime(*[int(x) for x in tup])
+			except ValueError:
+				pass # The SQL date parser will try harder to decode it.
+			#assert_soft(dtobj_1 == dtobj_2)
+		return dtobj_2
 
 	def setup_do_list_types_add(self, list_type):
 		if list_type not in self.setup_seen_types:
@@ -355,12 +386,26 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 			# Ignoring: list_type == 'all'
 			#  See: self.cli_opts.do_list_all
 			# Hahaha, this block is ridiculous.
-			if list_type == 'weekly-summary':
+			if list_type == 'gross':
+				self.setup_do_list_types_add('gross-totals')
+				self.setup_do_list_types_add('gross-category')
+				self.setup_do_list_types_add('gross-activity')
+			elif list_type == 'weekly-summary':
 				for report_type in HR_Argparser.weekly_report:
 					self.setup_do_list_types_add(report_type)
 			elif list_type == 'sprint-summary':
 				for report_type in HR_Argparser.sprint_report:
 					self.setup_do_list_types_add(report_type)
+			elif list_type == 'weekly-report':
+				self.setup_do_list_types_add('daily-activity')
+				self.setup_do_list_types_add('daily-totals')
+				self.setup_do_list_types_add('weekly-category-satsun')
+				self.setup_do_list_types_add('weekly-totals-satsun')
+			elif list_type == 'sprint-report':
+				self.setup_do_list_types_add('daily-activity')
+				self.setup_do_list_types_add('daily-totals')
+				self.setup_do_list_types_add('weekly-category-sprint')
+				self.setup_do_list_types_add('weekly-totals-sprint')
 			elif list_type == 'daily':
 				#self.setup_do_list_types_add('daily-activity')
 				#self.setup_do_list_types_add('daily-category')
@@ -400,6 +445,9 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 			elif list_type == 'weekly-category':
 				self.setup_do_list_types_add('weekly-category-satsun')
 				self.setup_do_list_types_add('weekly-category-sprint')
+			elif list_type == 'weekly-totals':
+				self.setup_do_list_types_add('weekly-totals-satsun')
+				self.setup_do_list_types_add('weekly-totals-sprint')
 			elif list_type == 'weekly-totals':
 				self.setup_do_list_types_add('weekly-totals-satsun')
 				self.setup_do_list_types_add('weekly-totals-sprint')
@@ -461,7 +509,13 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		# facts in specified time.
 
 	def process_list_type(self, list_type):
-		if list_type == 'daily-activity':
+		if list_type == 'gross-activity':
+			self.list_gross_per_activity()
+		elif list_type == 'gross-category':
+			self.list_gross_per_category()
+		elif list_type == 'gross-totals':
+			self.list_gross_totals()
+		elif list_type == 'daily-activity':
 			self.list_daily_per_activity()
 		elif list_type == 'daily-category':
 			self.list_daily_per_category()
@@ -702,8 +756,7 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 				# with run(), but shell=True dumps me on the sqlite3 prompt.
 				if False:
 					ret = subprocess.run(sql_args, stderr=subprocess.DEVNULL)
-	# DEVs: Set to if True to get better sqlite3 if your query fails.
-				if False:
+				if LEAK_SQLITE3_ERRORS:
 					# We could use check_output to collect output lines.
 					#ret = subprocess.check_output(sql_args, stderr=subprocess.DEVNULL)
 					# DEBUGGING: Run without stderr redirected.
@@ -717,7 +770,7 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 							print(line)
 							n_facts += 1
 					#print('No. facts found: %d' % (n_facts,))
-				if True:
+				else: # not LEAK_SQLITE3_ERRORS
 					# ret.stdout will be None because everything goes to stdout.
 					#ret = subprocess.run(sql_args, stderr=subprocess.PIPE)
 					# Or we can capture stdout instead and strip that first blank line.
@@ -852,6 +905,23 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		self.str_params['SQL_FACT_DURATIONS'] = self.sql_fact_durations
 		self.str_params['SQL_DURATION'] = Hamsterer.SQL_DURATION
 
+	def list_gross_wrap(self, subtitle, cats, acts):
+		print()
+		print('GROSS %s TOTALS' % (subtitle,))
+		print('===============================================================')
+		self.list_weekly_wrap(
+			group_by_categories=cats, group_by_activities=acts,
+		)
+
+	def list_gross_per_activity(self):
+		self.list_gross_wrap('ACTIVITY', True, True)
+
+	def list_gross_per_category(self):
+		self.list_gross_wrap('CATEGORY', True, False)
+
+	def list_gross_totals(self):
+		self.list_gross_wrap('GROSS', False, False)
+
 	def list_daily_per_activity(self):
 		print()
 		print('DAILY ACTIVITY TOTALS')
@@ -919,20 +989,35 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 	)
 
 	def list_weekly_wrap(self,
-		sql_julian_day_of_year,
 		group_by_categories=False,
 		group_by_activities=False,
+		sql_julian_day_of_year=None,
 		week_num_unit='sprint_num',
 	):
+		group_bys = []
 		self.setup_sql_fact_durations()
-		self.str_params['SQL_JULIAN_WEEK'] = "CAST((%s) / 7 as integer)" % (
-			sql_julian_day_of_year,
-		)
-		group_bys = ['julianweek',]
+		if sql_julian_day_of_year:
+			self.str_params['SQL_JULIAN_WEEK_INNER'] = (
+				", CAST((%s) / 7 as integer) AS julianweek"
+				% (sql_julian_day_of_year,)
+			)
+			self.str_params['FIRST_SPRINT_WEEK_NUM'] = self.cli_opts.first_sprint_week_num
+			self.str_params['WEEK_NUM_UNIT'] = week_num_unit
+			self.str_params['SQL_JULIAN_WEEK_OUTER'] = (
+				", julianweek - %(FIRST_SPRINT_WEEK_NUM)s AS %(WEEK_NUM_UNIT)s"
+				% self.str_params
+			)
+			group_bys.append('julianweek')
+			header_cols = 'wkd|start_date|w|duration'
+			header_dash = '---|----------|-|--------'
+		else:
+			# Don't group by a time interval.
+			self.str_params['SQL_JULIAN_WEEK_INNER'] = ''
+			self.str_params['SQL_JULIAN_WEEK_OUTER'] = ''
+			header_cols = 'wkd|start_date|duration'
+			header_dash = '---|----------|--------'
 		sql_select_extra = ''
 		sql_order_by_extra = ''
-		header_cols = 'wkd|start_date|w|duration'
-		header_dash = '---|----------|-|--------'
 		#if self.cli_opts.categories or self.cli_opts.query:
 		if group_by_activities:
 			group_bys.append('tag_names')
@@ -959,9 +1044,7 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 			sql_select_extra += ', tag_names'
 			header_cols += '|tag_names'
 			header_dash += '|---------'
-		sql_group_by = "GROUP BY %s" % (', '.join(group_bys),)
-		self.str_params['FIRST_SPRINT_WEEK_NUM'] = self.cli_opts.first_sprint_week_num
-		self.str_params['WEEK_NUM_UNIT'] = week_num_unit
+		sql_group_by = "GROUP BY %s" % (', '.join(group_bys),) if group_bys else ''
 		self.str_params['SELECT_EXTRA'] = sql_select_extra
 		self.str_params['ORDER_BY_EXTRA'] = sql_order_by_extra
 		self.str_params['SQL_GROUP_BY'] = sql_group_by
@@ -974,14 +1057,14 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 				--, strftime('%%Y-%%m-%%d', start_week) AS start_date
 				----, julianweek
 				--, strftime('%%Y-%%m-%%d', start_week) AS start_week
-				, julianweek - %(FIRST_SPRINT_WEEK_NUM)s AS %(WEEK_NUM_UNIT)s
+				%(SQL_JULIAN_WEEK_OUTER)s
 				, duration
 				%(SELECT_EXTRA)s
 			FROM (
 				SELECT
 					min(julianday(start_time)) AS real_start_time
 					, julianday(start_time) - pseudo_week_offset AS start_time
-					, %(SQL_JULIAN_WEEK)s AS julianweek
+					%(SQL_JULIAN_WEEK_INNER)s
 					, %(SQL_DURATION)s AS duration
 					, tag_names
 					%(ORDER_BY_EXTRA)s
@@ -998,7 +1081,7 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		#      tue|2016-02-09|6|   0.167|    personal|Bathroom|
 		self.print_output_generic_fcn_name(sql_select, use_header=False)
 
-	SQL_WEEK_START_DNUM = (
+	SQL_WEEK_START_DNUM_SATSUN = (
 		# LATER/#XXX: Add clock time to stamp for self.cli_opts.day_starts
 		"""
 		julianday(start_time)
@@ -1012,10 +1095,11 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		print('SUN-SAT WEEKLY %s TOTALS' % (subtitle,))
 		#print('===============%s=======' % ('=' * len(subtitle),))
 		print('===============================================================')
-		sql_julian_day_of_year = Hamsterer.SQL_WEEK_START_DNUM
-		self.list_weekly_wrap(sql_julian_day_of_year,
+		sql_julian_day_of_year = Hamsterer.SQL_WEEK_START_DNUM_SATSUN
+		self.list_weekly_wrap(
 			group_by_categories=cats,
 			group_by_activities=acts,
+			sql_julian_day_of_year=sql_julian_day_of_year,
 			week_num_unit='week_num'
 		)
 
@@ -1028,7 +1112,7 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 	def list_satsun_weekly_totals(self):
 		self.list_satsun_weekly_wrap('TOTAL', False, False)
 
-	SQL_WEEK_START_DNUM = (
+	SQL_WEEK_START_DNUM_SPRINT = (
 		"%s - julianday(strftime('%%Y-01-01', start_time))"
 		% (SQL_WEEK_START_JDAY,)
 	)
@@ -1038,10 +1122,11 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		print('SPRINT WEEKLY %s TOTALS' % (subtitle,))
 		#print('==============%s=======' % ('=' * len(subtitle),))
 		print('===============================================================')
-		sql_julian_day_of_year = Hamsterer.SQL_WEEK_START_DNUM
-		self.list_weekly_wrap(sql_julian_day_of_year,
+		sql_julian_day_of_year = Hamsterer.SQL_WEEK_START_DNUM_SPRINT
+		self.list_weekly_wrap(
 			group_by_categories=cats,
 			group_by_activities=acts,
+			sql_julian_day_of_year=sql_julian_day_of_year,
 			week_num_unit='sprint_num'
 		)
 
