@@ -387,9 +387,9 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 			#  See: self.cli_opts.do_list_all
 			# Hahaha, this block is ridiculous.
 			if list_type == 'gross':
-				self.setup_do_list_types_add('gross-totals')
-				self.setup_do_list_types_add('gross-category')
 				self.setup_do_list_types_add('gross-activity')
+				self.setup_do_list_types_add('gross-category')
+				self.setup_do_list_types_add('gross-totals')
 			elif list_type == 'weekly-summary':
 				for report_type in HR_Argparser.weekly_report:
 					self.setup_do_list_types_add(report_type)
