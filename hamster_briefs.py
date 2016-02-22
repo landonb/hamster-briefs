@@ -1,6 +1,6 @@
 #!/usr/bin/env python3.5
 # (Using py3.5 for subprocess.run().)
-# Last Modified: 2016.02.17 /coding: utf-8
+# Last Modified: 2016.02.22 /coding: utf-8
 # Copyright: © 2016 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -26,8 +26,8 @@ SCRIPT_DESC = 'Hamster.db Analysis Tool'
 SCRIPT_VERS = 'X' # '0.1'
 
 # DEVs: Set to True for better error message if sqlite3 query fails.
-LEAK_SQLITE3_ERRORS=True
 LEAK_SQLITE3_ERRORS=False
+#LEAK_SQLITE3_ERRORS=True
 
 class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 
@@ -533,6 +533,9 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 			self.list_sprint_weekly_per_category()
 		elif list_type == 'weekly-totals-sprint':
 			self.list_sprint_weekly_totals()
+		elif list_type == 'all':
+			# Already handled by list_all().
+			pass
 		else:
 			log.warning('Not a list_type: %s' % (list_type,))
 
@@ -832,6 +835,8 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 			FROM facts
 			JOIN activities ON (activities.id = facts.activity_id)
 			JOIN categories ON (categories.id = activities.category_id)
+			LEFT OUTER JOIN fact_tags ON (facts.id = fact_tags.fact_id)
+			LEFT OUTER JOIN tags ON (fact_tags.tag_id = tags.id)
 			WHERE 1
 				%(REPORT_CATEGORIES)s
 				%(SQL_BEG_DATE)s
