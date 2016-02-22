@@ -830,6 +830,7 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 					), -10, 10)
 				AS duration
 				, activities.name AS activity_name
+				, tags.name
 				, facts.description
 				--, strftime('%%Y-%%j', facts.start_time) AS yrjul
 			FROM facts
