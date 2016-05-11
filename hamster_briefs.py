@@ -233,6 +233,9 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 		#                save it for later, if ever. And just try not to fuck
 		#                up hamster.db when you Add earlier activities.
 		#
+		#       IDEALLY: You not only backup hamster.db but also periodically
+		#                check it into a git repository.
+		#
 		self.add_argument('-B', '--bkup', '--backup', dest='do_backup',
 			action='store_true', default=False,
 		)
