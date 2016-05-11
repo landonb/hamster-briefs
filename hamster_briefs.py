@@ -515,13 +515,25 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		self.curs = None
 		self.conn = None
 
+		if self.cli_opts.cli_optsless:
+			# Just a silly helper for newbies who run without options.
+			# (Generally, after lots of usage, users will want to use
+			# common sets of options; e.g., see [lb]'s time-lnb.sh.)
+			print('')
+			print('You ran %s optionlessly. Try' % (sys.argv[0],))
+			print('  %s --help' % (sys.argv[0],))
+			print('for usage help.')
+
 	def check_integrity(self):
 		sql_select = "SELECT COUNT(*) FROM facts WHERE end_time IS NULL"
 		try:
 			self.curs.execute(sql_select)
 			count = self.curs.fetchone()
 			if count[0] not in (0, 1):
-				log.fatal('Unexpected count: %s / query: %s' % (count[0], sql_select,))
+				log.fatal('DATA ERROR: Unexpected count: %s / query: %s' % (count[0], sql_select,))
+				sql_select = "SELECT * FROM facts WHERE end_time IS NULL"
+				self.print_output_generic_fcn_name(sql_select)
+				print('You must fix one or more records to continue.')
 				sys.exit(1)
 		except Exception as err:
 			log.fatal('SQL statement failed: %s' % (str(err),))
