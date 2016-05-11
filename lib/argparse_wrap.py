@@ -1,4 +1,4 @@
-# Last Modified: 2016.02.07 /coding: utf-8
+# Last Modified: 2016.03.16 /coding: utf-8
 # Copyright: © 2011, 2015-2016 Landon Bouma.
 # License: GPLv3. See LICENSE.txt.
 
@@ -16,8 +16,10 @@ from timedelta_wrap import timedelta_wrap
 import logging
 log = logging.getLogger('argparse_wrap')
 
-__all__ = ['ArgumentParser_Wrap',
-           'Simple_Script_Base',]
+__all__ = [
+  'ArgumentParser_Wrap',
+  'Simple_Script_Base',
+]
 
 # Usage: Derive a class from this class and override
 #        the two functions, prepare() and verify().
