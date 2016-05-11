@@ -1,6 +1,6 @@
 #!/usr/bin/env python3.5
 # (Using py3.5 for subprocess.run().)
-# Last Modified: 2016.02.22 /coding: utf-8
+# Last Modified: 2016.05.10 /coding: utf-8
 # Copyright: © 2016 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -189,29 +189,51 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 			type=str, metavar='HAMSTER_DB_PATH', default=None
 		)
 
-		# LATER/#XXXs: Implement a few new features.
+		# MAYBE/#XXXs: A few new features.
 		if False:
 			self.prepare_add_stubs()
 
 	def prepare_add_stubs(self):
 
-		# LATER/MAYBE/#XXX: day-starts feature.
+		# LATER/#XXX: Check for gaps feature.
+		self.add_argument('-g', '--gaps', dest='check_gaps',
+			action='store_true', default=False,
+		)
+
+		# LATER/MAYBE/#XXX: day-starts feature ([lb] uses wrapper time-something.sh scripts).
 		self.add_argument('-d', '--time-day-starts', dest='day_starts',
 			type=str, metavar='TIME_DAY_STARTS', default=None
 		)
 
-		# LATER/MAYBE/#XXX: Need a search-description option?
+		# MAYBE/#XXX: Need a search-description option?
 		self.add_argument('--description', dest='description',
 			action='append', type=str, metavar='DESCRIPTION',
 		)
 
-		# LATER/MAYBE/#XXX: Need a generic, search-all-fields query?
+		# MAYBE/#XXX: Need a generic, search-all-fields query?
 		self.add_argument('-s', '--search', '-q', '--query', dest='query',
 			action='append', type=str, metavar='QUERY',
 		)
 
-		# LATER/#XXX: Check for gaps feature.
-		self.add_argument('-g', '--gaps', dest='check_gaps',
+		# LATER/#ts-178: Add 'deleted' column to 'fact' table.
+		#
+		# MAYBE/TILTHEN: Use --backup before "Add earlier activity"
+		#                            just in case you put in wrong time
+		#                              and destroy existing facts.
+		#
+		#    BUT REALLY: You should already be backing up your files.
+		#
+		#                Nightly/Daily.
+		#
+		#                So, really, --backup would just save you from having
+		#                to recreate new facts since the last backup, and to
+		#                recreate any edits you made before the crappup. So,
+		#                really, coding --backup, while easy, is more work
+		#                (or at least more brain power) than this comment, so
+		#                save it for later, if ever. And just try not to fuck
+		#                up hamster.db when you Add earlier activities.
+		#
+		self.add_argument('-B', '--bkup', '--backup', dest='do_backup',
 			action='store_true', default=False,
 		)
 
