@@ -240,6 +240,8 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 	def verify(self):
 		ok = argparse_wrap.ArgumentParser_Wrap.verify(self)
 
+		self.cli_opts.cli_optsless = False
+
 		if self.cli_opts.be_verbose:
 			log.setLevel(logging.DEBUG)
 		elif self.cli_opts.show_sql:
@@ -370,7 +372,15 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 				if self.cli_opts.prev_weeks in [1,2,]:
 					self.cli_opts.do_list_types = ['weekly-report',]
 				else:
-					self.cli_opts.do_list_types = ['weekly-summary',]
+					# THIS_IS_THE_DEFAULT_BEHAVIOUR: This happens if user uses no CLI opts.
+					#self.cli_opts.do_list_types = ['weekly-summary',]
+					# 2016-03-16: After months of hundreds of new facts since
+					# first writing this script, a weekly-summary seems too much.
+					# Ideally, we'd see what's in the db already and tailor the
+					# response to that, but people don't run no-opts very often.
+					# We should probably show some help....
+					self.cli_opts.cli_optsless = True
+					self.cli_opts.do_list_types = ['gross',]
 			self.cli_opts.do_list_types += add_list_types
 		self.setup_do_list_types()
 
@@ -497,6 +507,8 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 			sys.exit(1)
 
 		self.check_integrity()
+
+		# See THIS_IS_THE_DEFAULT_BEHAVIOUR for the default behavior.
 
 		if ((self.cli_opts.do_list_all)
 			or ('all' in self.cli_opts.do_list_types)
