@@ -1,3 +1,4 @@
+# Do we need a shebang here?
 # vim:tw=0:ts=4:sw=4:noet
 #
 # FIXME: 2016-02-16: This setup script is untested...
