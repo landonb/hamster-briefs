@@ -1,6 +1,6 @@
 #!/usr/bin/env python3.5
 # (Using py3.5 for subprocess.run().)
-# Last Modified: 2016.05.10 /coding: utf-8
+# Last Modified: 2016.06.17 /coding: utf-8
 # Copyright: © 2016 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -36,8 +36,8 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 		'gross',
 		'weekly-summary',
 		'sprint-summary',
-		'weekly-tight',
-		'sprint-tight',
+		#'weekly-tight',
+		#'sprint-tight',
 		'daily',
 		'weekly',
 		'activity',
@@ -62,6 +62,8 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 		'gross-activity',
 		'gross-category',
 		'gross-totals',
+		'report',
+		'report-activity',
 	])
 
 	gross_report = [
@@ -161,6 +163,10 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 			action='store_const', const=5,
 		)
 
+		self.add_argument('-l', '--quick-list', dest='quick_list',
+			action='store_true', default=False,
+		)
+
 		self.add_argument('-r', '--report-types', dest='do_list_types',
 			action='append', type=str, metavar='REPORT_TYPE',
 			choices=HR_Argparser.all_report_types,
@@ -187,6 +193,10 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 
 		self.add_argument('-D', '--data', dest='hamster_db_path',
 			type=str, metavar='HAMSTER_DB_PATH', default=None
+		)
+
+		self.add_argument('-s', '--split-days', dest='output_split_days',
+			action='store_true', default=False,
 		)
 
 		# MAYBE/#XXXs: A few new features.
@@ -299,6 +309,18 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 				'%s/.local/share/hamster-applet/hamster.db'
 				% (os.path.expanduser('~'),)
 			)
+
+		if self.cli_opts.quick_list:
+			# This display is nice for copy-pasting to another entry system,
+			# like plan.io/redmine; it lists the number of hours per activity
+			# per day with other lite stats for last full sprint week.
+			if self.cli_opts.do_list_types is None:
+				self.cli_opts.do_list_types = ['report-activity',]
+				self.cli_opts.output_split_days = True
+			if self.cli_opts.prev_weeks is None:
+				# FIXME: If day before end of sprint, just print current sprint.
+				# MAYBE: Do not print current sprint if not last day?
+				self.cli_opts.prev_weeks = 2
 
 		if self.cli_opts.prev_weeks is not None:
 			# 0: today, 1: this week, 2: this week and last, 4: month, 5: 2 months.
@@ -486,6 +508,12 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 			elif list_type == 'weekly-totals':
 				self.setup_do_list_types_add('weekly-totals-satsun')
 				self.setup_do_list_types_add('weekly-totals-sprint')
+			elif list_type in ['report', 'report-activity',]:
+				# See also: self.cli_opts.quick_list
+				self.setup_do_list_types_add('daily-activity')
+				self.setup_do_list_types_add('weekly-category-sprint')
+				self.setup_do_list_types_add('daily-totals')
+				self.setup_do_list_types_add('weekly-totals-sprint')
 			else:
 				# Not a group type.
 				self.setup_do_list_types_add(list_type)
@@ -535,9 +563,10 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 			# (Generally, after lots of usage, users will want to use
 			# common sets of options; e.g., see [lb]'s time-lnb.sh.)
 			print('')
-			print('You ran %s optionlessly. Try' % (sys.argv[0],))
+			print('Using default report format. To see more options, try')
+			print('  %s -r list' % (sys.argv[0],))
+			print('For more general help, try')
 			print('  %s --help' % (sys.argv[0],))
-			print('for usage help.')
 
 	def check_integrity(self):
 		sql_select = "SELECT COUNT(*) FROM facts WHERE end_time IS NULL"
@@ -777,7 +806,7 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 				self.str_params['SQL_ACTS_AND_TAGS'],
 			)
 
-	def print_output_generic_fcn_name(self, sql_select, use_header=False):
+	def print_output_generic_fcn_name(self, sql_select, use_header=False, output_split_days=False):
 		if self.cli_opts.show_sql:
 			log.info(sql_select)
 
@@ -828,11 +857,24 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 					# Or we can capture stdout instead and strip that first blank line.
 					ret = subprocess.run(sql_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
+					curr_first_col = None
+					last_first_col = None
 					# Process stdout.
 					outlns = ret.stdout.decode("utf-8").split('\n')
 					for outln in outlns:
 						if outln:
+							if output_split_days:
+								curr_first_col = outln[:outln.index('|')]
+								#try:
+								#	curr_first_col = outln[:outln.index('|')]
+								#except ValueError:
+								#	curr_first_col = None
+								if ((last_first_col is not None)
+									and (last_first_col != curr_first_col)
+								):
+									print('')
 							print(outln)
+							last_first_col = curr_first_col
 
 					# Process errors.
 					errlns = ret.stderr.decode("utf-8").split('\n')
@@ -996,7 +1038,7 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 			GROUP BY yrjul, activity_id
 			ORDER BY start_time, activity_name
 		""" % self.str_params
-		self.print_output_generic_fcn_name(sql_select)
+		self.print_output_generic_fcn_name(sql_select, output_split_days=self.cli_opts.output_split_days)
 
 	def list_daily_per_category(self):
 		print()
