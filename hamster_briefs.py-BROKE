@@ -1,10 +1,8 @@
 #!/usr/bin/env python3.5
 # (Using py3.5 for subprocess.run().)
-# Last Modified: 2016.10.03 /coding: utf-8
+# Last Modified: 2016.06.17 /coding: utf-8
 # Copyright: © 2016 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
-
-# FIXME: SQL_EXTERNAL: Not working on Mint 18 (where SQL_EXTERNAL=False)
 
 import os
 import sys
@@ -624,24 +622,14 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 	# NOTE: Ideally, we'd not trust user input and all self.curs.execute
 	#       with a SQL command containing '?'s, and the user input would
 	#       be passed as a list of strings so sqlite3 can defend against
-	#       injection.
-	#
-	#       Alas, the python3.4 sqlite3 library on Mint 17.2 is:
-	#
+	#       injection. Alas, the python3.4 sqlite3 library on Mint 17.2 is
 	#         >>> import sqlite3 ; print(sqlite3.sqlite_version)
 	#         3.8.2
-	#
 	#       but we're really running
-	#
 	#         $ sqlite3 --version
 	#         3.10.1 2016-01-13 21:41:56
-	#
 	#       and the printf command was added in 3.8.3. tl;dr too late ha!
 	#       (Also python3.5 from deadsnakes also uses 3.8.2.)
-	#
-	#       Linux Mint 18: import sqlite3 ; print(sqlite3.sqlite_version): 3.11.0.
-	#
-
 	SQL_EXTERNAL = True
 	sqlite_v = sqlite3.sqlite_version.split('.')
 	if (
@@ -650,11 +638,6 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		or ((int(sqlite_v[1]) == 8) and (int(sqlite_v[2]) > 2))
 	):
 		SQL_EXTERNAL = False
-
-# FIXME/2016-09-26: Linux Mint 18: accessing sqlite3 internally not working!
-#                   In fact, nothing being returned, it feels like!
-	SQL_EXTERNAL = True
-
 
 	# A hacky way to add leading spaces/zeros: use substr.
 	# CAVEAT: This hack will strip characters if number of characters exceeds
@@ -687,13 +670,7 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		self.sql_categories = ''
 		self.sql_categories_ = ''
 		if self.cli_opts.categories:
-#			print('categories: %s' % (self.cli_opts.categories,))
-			assert(isinstance(self.cli_opts.categories, list))
-#
-# FIXME: extend, not append?
-#			self.sql_params.append(self.cli_opts.categories)
-			self.sql_params.extend(self.cli_opts.categories)
-
+			self.sql_params.append(self.cli_opts.categories)
 			qmark_list = ','.join(['?' for x in self.cli_opts.categories])
 			self.sql_categories = (
 				#"AND categories.name IN (%s)" % (qmark_list,)
@@ -713,8 +690,6 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		self.sql_beg_date = ''
 		self.sql_beg_date_ = ''
 		if self.cli_opts.time_beg:
-#			print('time_beg: %s' % (self.cli_opts.time_beg,))
-			assert(not isinstance(self.cli_opts.time_beg, list))
 			self.sql_params.append(self.cli_opts.time_beg)
 			self.sql_beg_date = "AND facts.start_time >= datetime(?)"
 			self.sql_beg_date_ = (
@@ -729,8 +704,6 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		self.sql_end_date = ''
 		self.sql_end_date_ = ''
 		if self.cli_opts.time_end:
-#			print('time_end: %s' % (self.cli_opts.time_end,))
-			assert(not isinstance(self.cli_opts.time_end, list))
 			self.sql_params.append(self.cli_opts.time_end)
 			self.sql_end_date = "AND facts.start_time < datetime(?)"
 			self.sql_end_date_ = (
@@ -746,9 +719,6 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		self.sql_activities = ''
 		self.sql_activities_ = ''
 		if self.cli_opts.activities:
-#			print('activities: %s' % (self.cli_opts.activities,))
-# FIXME: extend, not append?
-			assert(isinstance(self.cli_opts.activities, list))
 			self.sql_params.append(self.cli_opts.activities)
 			qmark_list = ','.join(['?' for x in self.cli_opts.activities])
 			# We probably don't need/want to be strict:
@@ -791,9 +761,6 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		self.sql_tag_names = ''
 		self.sql_tag_names_ = ''
 		if self.cli_opts.tags:
-#			print('tags: %s' % (self.cli_opts.tags,))
-# FIXME: extend, not append?
-			assert(isinstance(self.cli_opts.tags, list))
 			self.sql_params.append(self.cli_opts.tags)
 			qmark_list = ','.join(['?' for x in self.cli_opts.tags])
 			self.sql_tag_names = (
@@ -844,16 +811,9 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 			log.info(sql_select)
 
 		if not Hamsterer.SQL_EXTERNAL:
-# !!!!!
-			log.fatal('sql_select: %s' % (sql_select,))
-			log.fatal('sql_params: %s' % (self.sql_params,))
-# WRONG ? substitution order!
-# Mon, 26 Sep 2016 12:28:41 CRIT argparse_wrap # sql_params: ['exosite', '2016-09-17', datetime.date(2016, 9, 27)]
-
-
 			try:
 				self.curs.execute(sql_select, self.sql_params)
-				print(self.curs.fetchall())
+				print(self.cur.fetchall())
 			except Exception as err:
 				log.fatal('SQL statement failed: %s' % (str(err),))
 				log.fatal('sql_select: %s' % (sql_select,))
