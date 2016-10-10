@@ -226,7 +226,9 @@ if [[ ${YES_OR_NO^^} != "Y" ]]; then
 fi
 
 # Kill_hamster_processes.
-sudo killall hamster-service hamster-indicator
+echo "Killalling hamster-service hamster-indicator..."
+#sudo killall hamster-service hamster-indicator
+killall hamster-service hamster-indicator
 function errexit_cleanup() {
   # Do we get the exit code? Not sure...
 echo "FIXME: Cleanup this fcn. (errexit_cleanup)"
