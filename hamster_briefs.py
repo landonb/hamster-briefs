@@ -1,6 +1,6 @@
 #!/usr/bin/env python3.5
 # (Using py3.5 for subprocess.run().)
-# Last Modified: 2016.10.03 /coding: utf-8
+# Last Modified: 2016.11.14 /coding: utf-8
 # Copyright: © 2016 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -28,6 +28,8 @@ SCRIPT_DESC = 'Hamster.db Analysis Tool'
 SCRIPT_VERS = 'X' # '0.1'
 
 # DEVs: Set to True for better error message if sqlite3 query fails.
+#       Include stderr messages, including, e.g.,
+#         -- Loading resources from ~/.sqliterc
 LEAK_SQLITE3_ERRORS=False
 #LEAK_SQLITE3_ERRORS=True
 
@@ -35,6 +37,7 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 
 	all_report_types = set([
 		'all',
+		'egg',
 		'gross',
 		'weekly-summary',
 		'sprint-summary',
@@ -152,10 +155,10 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 		self.add_argument('-1', '--this-week', dest='prev_weeks',
 			action='store_const', const=1,
 		)
-		self.add_argument('-2', '--last-two-weeks', dest='prev_weeks',
+		self.add_argument('-2', '--last-week', dest='prev_weeks',
 			action='store_const', const=2,
 		)
-		self.add_argument('-3', '--two-week-summary', dest='prev_weeks',
+		self.add_argument('-3', '--last-two-weeks', dest='prev_weeks',
 			action='store_const', const=3,
 		)
 		self.add_argument('-4', '--this-month', dest='prev_weeks',
@@ -171,10 +174,14 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 
 		self.add_argument('-r', '--report-types', dest='do_list_types',
 			action='append', type=str, metavar='REPORT_TYPE',
-			choices=HR_Argparser.all_report_types,
+			choices=HR_Argparser.all_report_types, default=[],
 		)
 
 		self.add_argument('-A', '--list-all', dest='do_list_all',
+			action='store_true', default=False,
+		)
+
+		self.add_argument('-E', '--eggregate', dest='do_aggregate',
 			action='store_true', default=False,
 		)
 
@@ -190,7 +197,8 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 			type=str, metavar='DAY_WEEK_STARTS', default=None
 		)
 		self.add_argument('-W', '--first-sprint-week-num', dest='first_sprint_week_num',
-			type=int, metavar='FIRST_SPRINT_WEEK_NUM', default=0
+			type=int, metavar='FIRST_SPRINT_WEEK_NUM', default=0,
+			help="Apply offset to sprint week (julianweek since Jan 1st)",
 		)
 
 		self.add_argument('-D', '--data', dest='hamster_db_path',
@@ -312,22 +320,35 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 				% (os.path.expanduser('~'),)
 			)
 
+		# 0: today, 1: this week, 2: this week and last, 4: month, 5: 2 months.
+		#today = time.time()
+		today = datetime.date.today()
+
+		# Python says Monday is 0 and Sunday is 6;
+		# Sqlite3 says Sunday 0 and Saturday 6.
+		weekday = (today.weekday() + 1) % 7
+		days_ago = weekday - self.cli_opts.week_starts
+
 		if self.cli_opts.quick_list:
 			# This display is nice for copy-pasting to another entry system,
 			# like plan.io/redmine; it lists the number of hours per activity
 			# per day with other lite stats for last full sprint week.
-			if self.cli_opts.do_list_types is None:
+			if not self.cli_opts.do_list_types:
 				self.cli_opts.do_list_types = ['report-activity',]
 				self.cli_opts.output_split_days = True
 			if self.cli_opts.prev_weeks is None:
-				# FIXME: If day before end of sprint, just print current sprint.
-				# MAYBE: Do not print current sprint if not last day?
-				self.cli_opts.prev_weeks = 2
+				# If first day of new sprint, but this week and last (e.g.,
+				# it's timesheet day!). If into the sprint, print just
+				# current week.
+				if days_ago <= 1:
+					self.cli_opts.prev_weeks = 2
+				else:
+					self.cli_opts.prev_weeks = 1
+
+		if self.cli_opts.do_aggregate:
+			self.cli_opts.do_list_types += ['egg',]
 
 		if self.cli_opts.prev_weeks is not None:
-			# 0: today, 1: this week, 2: this week and last, 4: month, 5: 2 months.
-			#today = time.time()
-			today = datetime.date.today()
 			if self.cli_opts.time_end is not None:
 				log.fatal('Overriding time_end with today because prev_weeks.')
 			# FIXME: This makes -0 return zero results, i.e., nothing hits for
@@ -336,25 +357,26 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 			self.cli_opts.time_end = today + datetime.timedelta(1)
 			if self.cli_opts.time_beg is not None:
 				log.fatal('Overriding time_beg with calculated because prev_weeks.')
+
 			if self.cli_opts.prev_weeks == 0:
-				start_date = today - datetime.timedelta(1)
-				#start_date = today
+				#start_date = today - datetime.timedelta(1)
+				##start_date = today
 				self.cli_opts.time_beg = today.isoformat()
-				#self.cli_opts.time_beg = start_date.isoformat()
-				if self.cli_opts.do_list_types is None:
+				##self.cli_opts.time_beg = start_date.isoformat()
+				if not self.cli_opts.do_list_types:
 					self.cli_opts.do_list_types = ['daily',]
 			else:
 				#self.cli_opts.time_end = today.isoformat()
-				# Python says Monday is 0 and Sunday is 6;
-				# Sqlite3 says Sunday 0 and Saturday 6.
-				weekday = (today.weekday() + 1) % 7
-				days_ago = weekday - self.cli_opts.week_starts
 				if days_ago < 0:
 					days_ago += 7
 				if self.cli_opts.prev_weeks == 1:
 					# Calculate back to week start.
 					start_date = today - datetime.timedelta(days_ago)
-				elif self.cli_opts.prev_weeks in [2,3,]:
+				elif self.cli_opts.prev_weeks == 2:
+					# Last week.
+					start_date = today - datetime.timedelta(7 + days_ago)
+					self.cli_opts.time_end = today - datetime.timedelta(days_ago)
+				elif self.cli_opts.prev_weeks == 3:
 					# Calculate to two weeks backs ago.
 					start_date = today - datetime.timedelta(7 + days_ago)
 				elif self.cli_opts.prev_weeks == 4:
@@ -374,7 +396,7 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 				self.cli_opts.time_beg = start_date.isoformat()
 
 		add_list_types = []
-		if (self.cli_opts.do_list_types is None
+		if (not self.cli_opts.do_list_types
 			and self.cli_opts.prev_weeks is None
 			and self.cli_opts.time_beg
 			and self.cli_opts.time_end
@@ -389,14 +411,14 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 					self.cli_opts.do_list_types = ['daily',]
 				elif time_diff.days > 7:
 					add_list_types += ['gross',]
-		if self.cli_opts.do_list_types is None:
+		if not self.cli_opts.do_list_types:
 			if self.cli_opts.week_starts:
-				if self.cli_opts.prev_weeks in [1,2,]:
+				if self.cli_opts.prev_weeks in [1,2,3,]:
 					self.cli_opts.do_list_types = ['sprint-report',]
 				else:
 					self.cli_opts.do_list_types = ['sprint-summary',]
 			else:
-				if self.cli_opts.prev_weeks in [1,2,]:
+				if self.cli_opts.prev_weeks in [1,2,3,]:
 					self.cli_opts.do_list_types = ['weekly-report',]
 				else:
 					# THIS_IS_THE_DEFAULT_BEHAVIOUR: This happens if user uses no CLI opts.
@@ -441,6 +463,7 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 		ok = True
 		self.setup_seen_types = set()
 		self.setup_list_types = []
+
 		for list_type in self.cli_opts.do_list_types:
 			# Ignoring: list_type == 'all'
 			#  See: self.cli_opts.do_list_all
@@ -613,6 +636,8 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 			self.list_sprint_weekly_per_category()
 		elif list_type == 'weekly-totals-sprint':
 			self.list_sprint_weekly_totals()
+		elif list_type == 'egg':
+			self.list_aggregate_results_report()
 		elif list_type == 'all':
 			# Already handled by list_all().
 			pass
@@ -636,8 +661,8 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 	#         $ sqlite3 --version
 	#         3.10.1 2016-01-13 21:41:56
 	#
-	#       and the printf command was added in 3.8.3. tl;dr too late ha!
-	#       (Also python3.5 from deadsnakes also uses 3.8.2.)
+	#       and the printf command was added in 3.8.3. tl;dr missed it by 1!
+	#       (And python3.5 from deadsnakes also uses 3.8.2.)
 	#
 	#       Linux Mint 18: import sqlite3 ; print(sqlite3.sqlite_version): 3.11.0.
 	#
@@ -651,10 +676,12 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 	):
 		SQL_EXTERNAL = False
 
-# FIXME/2016-09-26: Linux Mint 18: accessing sqlite3 internally not working!
-#                   In fact, nothing being returned, it feels like!
+	# FIXME/2016-09-26: Linux Mint 18: accessing sqlite3 internally not working.
+	#                   In fact, nothing being returned, it feels like.
+	# 2016-11-13/MEH: Since there's no easy way to update Python sqlite3
+	#                 library (part of the core of python), might as well
+	#                 stick to using the external binaries.
 	SQL_EXTERNAL = True
-
 
 	# A hacky way to add leading spaces/zeros: use substr.
 	# CAVEAT: This hack will strip characters if number of characters exceeds
@@ -839,7 +866,14 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 				self.str_params['SQL_ACTS_AND_TAGS'],
 			)
 
-	def print_output_generic_fcn_name(self, sql_select, use_header=False, output_split_days=False):
+	def print_output_generic_fcn_name(
+		self,
+		sql_select,
+		use_header=False,
+		output_split_days=False,
+	):
+		errs_found = False
+
 		if self.cli_opts.show_sql:
 			log.info(sql_select)
 
@@ -923,7 +957,6 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 					re_error_libspatialite = re.compile(
 	r'^Error: near line .*: libspatialite.*: cannot open shared object file: No such file or directory$'
 					)
-					errs_found = False
 					for errln in errlns:
 						if errln and not (
 							re_loading_resource.match(errln)
@@ -938,6 +971,8 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 				# Why isn't this printing by itself?
 				log.fatal('err.output: %s' % (err.output,))
 				raise
+
+		return errs_found
 
 	def setup_sql_setup(self):
 		self.sql_params = []
@@ -997,25 +1032,26 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 		#       figures out the max facts.id
 		self.sql_fact_durations = """
 			SELECT
-				CASE WHEN facts.end_time IS NOT NULL
-				THEN 24.0 * (julianday(facts.end_time) - julianday(facts.start_time))
-				ELSE 24.0 * (julianday('now', 'localtime') - julianday(facts.start_time))
-				END AS duration
-				--, strftime('%%Y-%%m-%%d', facts.start_time) AS yrjul
-				, strftime('%%Y-%%j', facts.start_time) AS yrjul
-				, CAST(strftime('%%w', facts.start_time) as integer) as day_of_week
-				, CAST(julianday(start_time) as integer) as julian_day_group
-				, CASE WHEN (CAST(strftime('%%w', facts.start_time) as integer) - %(SQL_WEEK_STARTS)s) >= 0
-				  THEN (CAST(strftime('%%w', facts.start_time) as integer) - %(SQL_WEEK_STARTS)s)
+				--strftime('%%Y-%%m-%%d', facts.start_time) AS yrjul
+				strftime('%%Y-%%j', facts.start_time) AS yrjul
+				, CAST(strftime('%%w', facts.start_time) AS integer) AS day_of_week
+				--, CAST(julianday(start_time) AS integer) AS julian_day_group
+				, CASE WHEN (CAST(strftime('%%w', facts.start_time) AS integer) - %(SQL_WEEK_STARTS)s) >= 0
+				  THEN (CAST(strftime('%%w', facts.start_time) AS integer) - %(SQL_WEEK_STARTS)s)
 				  ELSE (7 - %(SQL_WEEK_STARTS)s + CAST(strftime('%%w', facts.start_time) AS integer))
 				  END AS pseudo_week_offset
+				, facts.start_time
+				, CASE WHEN facts.end_time IS NOT NULL
+				  THEN 24.0 * (julianday(facts.end_time) - julianday(facts.start_time))
+				  ELSE 24.0 * (julianday('now', 'localtime') - julianday(facts.start_time))
+				  END AS duration
 				, categories.search_name AS category_name
 				--, categories.name AS category_name
 				, activities.name AS activity_name
 				--, activities.search_name AS activity_name
 				, facts.activity_id
-				, facts.start_time
 				, tag_names
+				, facts.description
 			--FROM facts
 			FROM (
 				SELECT
@@ -1275,6 +1311,49 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 
 	def list_sprint_weekly_totals(self):
 		self.list_sprint_weekly_wrap('TOTAL', False, False)
+
+	# 2016-11-13: Aggregate daily reporting.
+	# See also the Tempo timesheet script that consumes the output of this.
+	def list_aggregate_results_report(self):
+		self.setup_sql_fact_durations()
+		if False:
+			self.print_output_generic_fcn_name(
+				self.sql_fact_durations,
+				output_split_days=self.cli_opts.output_split_days
+			)
+			return
+
+
+		sql_select = """
+			SELECT
+				  fact_day
+				, SUM(duration) AS duration
+				, category_name
+				, activity_name
+				, activity_id
+				, tag_names
+				, GROUP_CONCAT(desc_and_durn, ",") AS eggregate
+			FROM (
+				SELECT
+					  strftime('%%Y-%%m-%%d', start_time) AS fact_day
+					, duration
+					, category_name
+					, activity_id
+					, activity_name
+					, tag_names
+					--, '"' || description || ' [' || duration || ']"' AS desc_and_durn
+					, CASE
+						WHEN description IS NULL THEN '"Misc. [' || duration || ']"'
+						ELSE '"' || description || ' [' || duration || ']"'
+					END AS desc_and_durn
+				FROM (%(SQL_FACT_DURATIONS)s) AS project_time
+			)
+			GROUP BY fact_day, activity_id, tag_names
+			ORDER BY fact_day, activity_id, tag_names
+		""" % self.str_params
+		self.print_output_generic_fcn_name(
+			sql_select, output_split_days=self.cli_opts.output_split_days
+		)
 
 if (__name__ == '__main__'):
 	hr = Hamsterer()
