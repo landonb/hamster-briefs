@@ -1,6 +1,6 @@
 #!/usr/bin/env python3.5
 # (Using py3.5 for subprocess.run().)
-# Last Modified: 2016.11.14 /coding: utf-8
+# Last Modified: 2016.11.15 /coding: utf-8
 # Copyright: © 2016 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -22,10 +22,11 @@ from lib import argparse_wrap
 import logging
 from lib import logging2
 logging2.init_logging(logging.DEBUG, log_to_console=True)
-log = logging.getLogger('argparse_wrap')
+log = logging.getLogger('hamster_briefs')
 
-SCRIPT_DESC = 'Hamster.db Analysis Tool'
-SCRIPT_VERS = 'X' # '0.1'
+SCRIPT_DESC = '''verb / 3rd person present: briefs / 1.
+instruct or inform (someone) thoroughly, especially in preparation for a task.'''
+SCRIPT_VERS = '0.9'
 
 # DEVs: Set to True for better error message if sqlite3 query fails.
 #       Include stderr messages, including, e.g.,
@@ -144,9 +145,9 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 			action='append', type=str, metavar='TAG',
 		)
 
-		self.add_argument('-X', '--and', dest='and_acts_and_tags',
+		self.add_argument('--and', dest='and_acts_and_tags',
 			action='store_true', default=False,
-			help="if True, must match activities AND tags names, else OR",
+			help="Match activities AND tags names, else just OR",
 		)
 
 		self.add_argument('-0', '--today', dest='prev_weeks',
@@ -183,6 +184,7 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 
 		self.add_argument('-E', '--eggregate', dest='do_aggregate',
 			action='store_true', default=False,
+			help="Format as daily activity-tag aggregate with fact descriptions [and fact times]",
 		)
 
 		self.add_argument('-S', '--show-sql', dest='show_sql',
@@ -205,8 +207,10 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 			type=str, metavar='HAMSTER_DB_PATH', default=None
 		)
 
+		# MEH: Only one output function honors this setting.
 		self.add_argument('-s', '--split-days', dest='output_split_days',
 			action='store_true', default=False,
+			help="Print newline between days. NOTE: Not honored by all report types.",
 		)
 
 		# MAYBE/#XXXs: A few new features.
@@ -220,7 +224,7 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 			action='store_true', default=False,
 		)
 
-		# LATER/MAYBE/#XXX: day-starts feature ([lb] uses wrapper time-something.sh scripts).
+		# LATER/MAYBE/#XXX: day-starts feature. I.e., other than at midnight.
 		self.add_argument('-d', '--time-day-starts', dest='day_starts',
 			type=str, metavar='TIME_DAY_STARTS', default=None
 		)
@@ -237,28 +241,12 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 
 		# LATER/#ts-178: Add 'deleted' column to 'fact' table.
 		#
-		# MAYBE/TILTHEN: Use --backup before "Add earlier activity"
-		#                            just in case you put in wrong time
-		#                              and destroy existing facts.
+		#                Because if you put wrong time/date in GUI,
+		#                you can destroy or modify existing facts
+		#                without warning.
 		#
-		#    BUT REALLY: You should already be backing up your files.
-		#
-		#                Nightly/Daily.
-		#
-		#                So, really, --backup would just save you from having
-		#                to recreate new facts since the last backup, and to
-		#                recreate any edits you made before the crappup. So,
-		#                really, coding --backup, while easy, is more work
-		#                (or at least more brain power) than this comment, so
-		#                save it for later, if ever. And just try not to fuck
-		#                up hamster.db when you Add earlier activities.
-		#
-		#       IDEALLY: You not only backup hamster.db but also periodically
-		#                check it into a git repository.
-		#
-		self.add_argument('-B', '--bkup', '--backup', dest='do_backup',
-			action='store_true', default=False,
-		)
+		#                And there's no undo other than recreating
+		#                said facts, or restoring a backup of hamster.db.
 
 	def verify(self):
 		ok = argparse_wrap.ArgumentParser_Wrap.verify(self)
@@ -1342,9 +1330,12 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 					, activity_name
 					, tag_names
 					--, '"' || description || ' [' || duration || ']"' AS desc_and_durn
+					--, CASE
+					--	WHEN description IS NULL THEN '"Misc. [' || duration || ']"'
+					--	ELSE '"' || description || ' [' || duration || ']"'
 					, CASE
-						WHEN description IS NULL THEN '"Misc. [' || duration || ']"'
-						ELSE '"' || description || ' [' || duration || ']"'
+						WHEN description IS NULL THEN '"Misc.","' || duration || '"'
+						ELSE '"' || description || '","' || duration || '"'
 					END AS desc_and_durn
 				FROM (%(SQL_FACT_DURATIONS)s) AS project_time
 			)
