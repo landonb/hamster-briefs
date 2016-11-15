@@ -13,6 +13,7 @@ import os
 import sys
 
 import json
+import re
 
 # Requests refs:
 #  http://docs.python-requests.org/en/master/
@@ -60,6 +61,10 @@ class TxTl_Argparser(argparse_wrap.ArgumentParser_Wrap):
 
 		self.add_argument('-p', '--pass', dest='pass',
 			type=str, help="password",
+		)
+
+		self.add_argument('-m', '--maps', dest='maps_file',
+			type=str, help="py file containing ticket IDs lookup",
 		)
 
 	def verify(self):
@@ -132,23 +137,68 @@ class Transformer(argparse_wrap.Simple_Script_Base):
 		self.entries.append(new_entry)
 
 	def upload_to_tempo(self):
+		__import__(self.cli_opts.maps_file)
+
+		proj_id_parser = re.compile(r'.* \[(\d+):(\d+):([-a-zA-Z0-9]+)\]\w*')
+
 		self.entries = []
 		with open(self.cli_opts.briefs_file, 'r') as briefs_f:
 			self.entries = json.loads(briefs_f.read())
 
+		# Do 2 passes, so in case we cannot parse something or otherwise
+		# fail, we won't have sent any POST requests to JIRA.
+		forreal = False
+		self.errs = []
+		self.update_entries(forreal)
+		if not self.errs:
+			forreal = True
+# FIXME: Test this first.
+#			self.update_entries(forreal)
+		else:
+			print("ERROR: Found %d error(s)." % (len(self.errs),))
+			print(self.errs)
+			sys.exit(1)
+
+	def update_entries(self, forreal):
 		#print(self.entries)
 		#print(json.dumps(self.entries, sort_keys=True, indent=4))
 
 		for entry in self.entries:
+
+			# The project ID and item key are encoded in the Activity name.
+			mat = proj_id_parser.match(entry.activity_name)
+			tup = mat.groups() if mat else None
+			if not tup:
+				self.errs.append("ERROR: Activity name missing JIRA IDs: %s" % (entry.activity_name,))
+				continue
+			try:
+				proj_id, item_id, item_key = tup
+			except ValueError as err:
+				self.errs.append(
+					"ERROR: Failed to parse JIRA IDs [proj:item:key] in activity name: %s"
+					% (entry.activity_name,)
+				)
+				continue
+
+			# For client-level Activities (sans ticket numbers),
+			# a tag should contain the item_key.
+			tags = ','.split(entry.tags)
+			for tag in tags:
+				try:
+					prefix, item_key, item_id = '+'.split(tag)
+				except ValueError as err:
+					# Not an encoded tag; ignore.
+					pass
 
 			curr_entry = {
 				"dateStarted": "%sT00:00:00.000+0000" % (entry.year_month_day,),
 				"timeSpentSeconds": "%d" % (int(60 * 60 * entry.time_spent),),
 				"comment": "\\n\\n".join(entry.desctimes),
 				"issue": {
-# FIXME: projectId/key lookup using hamster activity_id.
-					"projectId": "12345",
-					"key": "PROJ-1",
+					"projectId": proj_id,
+					"key": item_key,
+					# Not needed:
+					#item_id
 				},
 				"author": {
 					"name": self.cli_opts.user,
@@ -159,12 +209,15 @@ class Transformer(argparse_wrap.Simple_Script_Base):
 			sys.exit(0)
 
 			headers = {'content-type': 'application/json',}
-			req = requests.post(
-				self.cli_opts.tempo_url + '/rest/tempo-timesheets/3/worklogs',
-				auth=(self.cli_opts.user, self.cli_opts.pass)),
-				data=json.dumps(curr_entry),
-				headers=headers,
-			)
+			if not forreal:
+				json.dumps(curr_entry)
+			else:
+				req = requests.post(
+					self.cli_opts.tempo_url + '/rest/tempo-timesheets/3/worklogs',
+					auth=(self.cli_opts.user, self.cli_opts.pass)),
+					data=json.dumps(curr_entry),
+					headers=headers,
+				)
 
 # FIXME: TRY Just 1 for now.
 			sys.exit(0)
