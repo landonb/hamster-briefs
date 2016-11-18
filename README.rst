@@ -124,6 +124,15 @@ on such a machine, install the latest version of sqlite3, e.g.,
 
   https://github.com/landonb/hamster-applet
 
+Chjson
+======
+
+- You'll need the human JSON parser (because I like to comment JSON files, duh).
+
+  https://github.com/landonb/chjson
+
+  Follow the simple installation instructions on the ``chjson`` README.
+
 Options
 =======
 
