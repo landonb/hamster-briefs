@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Last Modified: 2016.11.15 /coding: utf-8
+# Last Modified: 2016.11.17 /coding: utf-8
 # Copyright: © 2016 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -12,8 +12,12 @@
 import os
 import sys
 
-import json
+#import json
 import re
+
+# C [code] H[uman] JSON
+#  https://github.com/landonb/chjson
+import chjson
 
 # Requests refs:
 #  http://docs.python-requests.org/en/master/
@@ -91,7 +95,8 @@ class Transformer(argparse_wrap.Simple_Script_Base):
 				if line:
 					self.read_brief_line(line)
 
-		print(json.dumps(self.entries, sort_keys=True, indent=4))
+		#print(json.dumps(self.entries, sort_keys=True, indent=4))
+		print(chjson.encode(self.entries, sort_keys=True, indent=4))
 
 	def read_brief_line(self, line):
 		try:
@@ -136,7 +141,8 @@ class Transformer(argparse_wrap.Simple_Script_Base):
 
 		self.entries = []
 		with open(self.cli_opts.briefs_file, 'r') as briefs_f:
-			self.entries = json.loads(briefs_f.read())
+			#self.entries = json.loads(briefs_f.read())
+			self.entries = chjson.decode(briefs_f.read())
 
 		# Do 2 passes, so in case we cannot parse something or otherwise
 		# fail, we won't have sent any POST requests to JIRA.
@@ -145,19 +151,31 @@ class Transformer(argparse_wrap.Simple_Script_Base):
 		self.update_entries(forreal)
 		if not self.errs:
 			forreal = True
-# FIXME: Test this first.
-#			self.update_entries(forreal)
+			self.update_entries(forreal)
 		else:
 			print("ERROR: Found %d error(s)." % (len(self.errs),))
 			for err in self.errs:
 				print(err)
 			sys.exit(1)
 
+	def output_header_tempo(self, forreal):
+		print('#########################################################################')
+		if not forreal:
+			print('PASS 1/2 Checking JSON')
+		else:
+			print('PASS 2/2 Tickling TEMPO')
+		print('#########################################################################')
+
 	def update_entries(self, forreal):
+		self.output_header_tempo(forreal)
+
 		#print(self.entries)
-		#print(json.dumps(self.entries, sort_keys=True, indent=4))
+		##print(json.dumps(self.entries, sort_keys=True, indent=4))
+		#print(chjson.encode(self.entries, sort_keys=True, indent=4))
 
 		proj_id_parser = re.compile(r'.* \[(\d+):(\d+):([-a-zA-Z0-9]+)\]\w*')
+
+		total_secs = 0
 
 		for entry in self.entries:
 
@@ -177,12 +195,16 @@ class Transformer(argparse_wrap.Simple_Script_Base):
 				continue
 
 			# For client-level Activities (sans ticket numbers),
-			# a tag should contain the item_key.
+			# a tag should contain the item_key. Format is:
+			#   exo__CLIENT-TICKETNUMBER__JIRAKEYID
 			if entry['tags']:
-				tags = ','.split(entry['tags'])
+				# The user can use more than one tag, which hamster, er,
+				# sqlite3 (hamster_briefs) combines with commas.
+				tags = entry['tags'].split(',')
 				for tag in tags:
 					try:
-						prefix, item_key, item_id = '__'.split(tag)
+						prefix, item_key, item_id = tag.split('__')
+						#prefix, item_key, proj_id = tag.split('__')
 					except ValueError as err:
 						# Not an encoded tag; ignore.
 						pass
@@ -190,7 +212,7 @@ class Transformer(argparse_wrap.Simple_Script_Base):
 			curr_entry = {
 				"dateStarted": "%sT00:00:00.000+0000" % (entry['year_month_day'],),
 				"timeSpentSeconds": "%d" % (int(60 * 60 * entry['time_spent']),),
-				"comment": "\\n\\n".join(entry['desctimes']),
+				"comment": "\n\n".join(entry['desctimes']),
 				"issue": {
 					"projectId": proj_id,
 					"key": item_key,
@@ -202,24 +224,58 @@ class Transformer(argparse_wrap.Simple_Script_Base):
 				},
 			}
 
-
 			headers = {'content-type': 'application/json',}
 			if not forreal:
-				json.dumps(curr_entry)
+				#json.dumps(curr_entry)
+				chjson.encode(curr_entry)
+				#print(curr_entry)
+				print("Entry: date: %s / time: %s" % (
+					curr_entry['dateStarted'],
+					curr_entry['timeSpentSeconds'],
+				))
+				total_secs += int(curr_entry['timeSpentSeconds'])
 			else:
+				print('POST: Key: %s / Date: %s / Time: %s' % (
+					curr_entry['issue']['key'],
+					curr_entry['dateStarted'],
+					curr_entry['timeSpentSeconds'],
+				))
 				print(curr_entry)
-#
-				continue
 				req = requests.post(
 					self.cli_opts.tempo_url + '/rest/tempo-timesheets/3/worklogs',
 					auth=(self.cli_opts.username, self.cli_opts.password),
-					data=json.dumps(curr_entry),
+					#data=json.dumps(curr_entry),
+					data=chjson.encode(curr_entry),
 					headers=headers,
 				)
+				# req.text/req.content is the server response, which
+				# on 200 OK is the full JSON on the new worklog entry.
+				# Note that req.ok when (req.status_code == 200).
+				if not req.ok:
+					print(
+						'ERROR: Tempo error: status_code: %s / text: %s'
+						% (req.status_code, req.text,)
+					)
+					#import pdb;pdb.set_trace()
+					pass
+					sys.exit(1)
 
-# FIXME: TRY Just 1 for now.
-#			sys.exit(0)
-
+		if not forreal:
+			print('-------------------------------------------------------------------------')
+			print(
+				"update_entries: total_secs: %s / total_hrs: %.2f"
+				% (total_secs, total_secs / 60.0 / 60.0,)
+			)
+		else:
+			print('-------------------------------------------------------------------------')
+			print('Success!')
+			print()
+			# FIXME: Can/Should we automate submit-for-approval?
+			print("REMEMBER: Logon and submit your timesheet.")
+			# FIXME: Encode 'period' so the correct week is displayed.
+			#  https://i.exosite.com/jira/secure/TempoUserBoard!timesheet.jspa?period=07112016
+			print("  %s/secure/TempoUserBoard!timesheet.jspa" % (self.cli_opts.tempo_url,))
+			print()
 
 if (__name__ == '__main__'):
 	hr = Transformer()
