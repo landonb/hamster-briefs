@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Last Modified: 2016.11.17 /coding: utf-8
+# Last Modified: 2016.11.18 /coding: utf-8
 # Copyright: © 2016 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -12,6 +12,7 @@
 import os
 import sys
 
+import datetime
 #import json
 import re
 
@@ -33,6 +34,11 @@ log = logging.getLogger('transform-brief')
 
 SCRIPT_DESC = 'Hamster Brief Transformation Tool'
 SCRIPT_VERS = '0.1a'
+
+# 2016-11-17: This script is a little green, and there's nothing
+# coded to quickly remove rogue entries, so ask user if the input
+# exceeds this many entries.
+NUM_ENTRIES_LIMIT_ASK = 20
 
 class TxTl_Argparser(argparse_wrap.ArgumentParser_Wrap):
 
@@ -144,19 +150,69 @@ class Transformer(argparse_wrap.Simple_Script_Base):
 			#self.entries = json.loads(briefs_f.read())
 			self.entries = chjson.decode(briefs_f.read())
 
+		# Ask for permission there are lots of entries.
+		self.check_if_oh_so_many()
+
 		# Do 2 passes, so in case we cannot parse something or otherwise
 		# fail, we won't have sent any POST requests to JIRA.
 		forreal = False
-		self.errs = []
+		self.parse_errs = []
+		self.failed_reqs = []
 		self.update_entries(forreal)
-		if not self.errs:
+		if not self.parse_errs:
 			forreal = True
 			self.update_entries(forreal)
 		else:
-			print("ERROR: Found %d error(s)." % (len(self.errs),))
-			for err in self.errs:
+			print(
+				"ERROR: Found %d error(s) you need to fix before you can upload."
+				% (len(self.parse_errs),)
+			)
+			for err in self.parse_errs:
 				print(err)
 			sys.exit(1)
+
+		if self.failed_reqs:
+			now = datetime.datetime.now()
+			fail_file = "%s-%s-%02d%02d%02d.json" % (
+				# FIXME/MAYBE: Anyone care about using a MAGIC NAME?
+				re.sub('\.json$', '', self.cli_opts.briefs_file),
+				datetime.date.today().isoformat(),
+				now.hour, now.minute, now.second,
+			)
+			with open(fail_file, 'x') as fail_f:
+				for entry in self.failed_reqs:
+					fail_f.write(chjson.encode(entry))
+			print(
+				"ERROR: Encountered %d error(s) during upload."
+				% (len(self.failed_reqs),)
+			)
+			print("Not all entries were submitted successfully.")
+			print("Please fix the problems and try again on the new file:")
+			print("  %s" % (fail_file,))
+			sys.exit(2)
+
+	def check_if_oh_so_many(self):
+		if len(self.entries) > NUM_ENTRIES_LIMIT_ASK:
+			# MAYBE: An --uninteractive option?
+			print()
+			print("I'm not one to pry, but that's a lot of data.")
+			try:
+				answer = input(
+					"Are you sure you want to upload %d new worklog entries? [y/N] "
+					% len(self.entries)
+				)
+			except EOFError as err:
+				# ^D path.
+				print("Wha?")
+				sys.exit(1)
+			except KeyboardInterrupt:
+				# ^C path.
+				print("You don't have to be rude.")
+				sys.exit(1)
+			else:
+				if (not answer) or (not 'yes'.startswith(answer.lower())):
+					print("Alright, you're the boss!")
+					sys.exit(1)
 
 	def output_header_tempo(self, forreal):
 		print('#########################################################################')
@@ -183,12 +239,12 @@ class Transformer(argparse_wrap.Simple_Script_Base):
 			mat = proj_id_parser.match(entry['activity_name'])
 			tup = mat.groups() if mat else None
 			if not tup:
-				self.errs.append("ERROR: Activity name missing JIRA IDs: %s" % (entry['activity_name'],))
+				self.parse_errs.append("ERROR: Activity name missing JIRA IDs: %s" % (entry['activity_name'],))
 				continue
 			try:
 				proj_id, item_id, item_key = tup
 			except ValueError as err:
-				self.errs.append(
+				self.parse_errs.append(
 					"ERROR: Failed to parse JIRA IDs [proj:item:key] in activity name: %s"
 					% (entry['activity_name'],)
 				)
@@ -252,13 +308,14 @@ class Transformer(argparse_wrap.Simple_Script_Base):
 				# on 200 OK is the full JSON on the new worklog entry.
 				# Note that req.ok when (req.status_code == 200).
 				if not req.ok:
+					#import pdb;pdb.set_trace()
+					self.failed_reqs.append(entry)
 					print(
 						'ERROR: Tempo error: status_code: %s / text: %s'
 						% (req.status_code, req.text,)
 					)
-					#import pdb;pdb.set_trace()
-					pass
-					sys.exit(1)
+
+		# end: for entry in self.entries
 
 		if not forreal:
 			print('-------------------------------------------------------------------------')
