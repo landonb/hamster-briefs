@@ -3,11 +3,83 @@
 # Copyright: © 2016 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
-# Should already be installed:
-#  sudo apt-get install -y python-pycurl python3-pycurl
 
-# Consume output of, e.g.,
-#  ./hamster_briefs.sh -2 -E
+# FIXME/2016-11-18: Rename this file to reflect that it's really tempo-specific?
+#
+# FIXME/2016-10-10: New feature to skip comments after EOF or RAMBLING
+#                   (make new switch).
+#
+# FIXME/2016-10-10: hamster_briefs.py: Fix multi-word -a option.
+#                   Doesn't work: time-exo.sh -2 -r all -a "Genie - Billable"
+
+
+
+# Prerequisites
+# -------------
+#
+# Often already be installed:
+#   sudo apt-get install -y python-pycurl python3-pycurl
+
+# Usage
+# -----
+
+# Generate a report from Hamster-briefs:
+#
+#   ./hamster_briefs.sh -2 -E > last_weeks_time.raw
+#
+# Convert the report to HJSON that you can edit
+# and comment (and store for posterity).
+#
+#   ./transform-brief.py -r last_weeks_time.raw > last_weeks_time.json
+#
+# Lob your curated timesheet at the Tempo API.
+#
+#   ./transform-brief.py \
+#       -T "https://path.to/jira" \
+#       -u "USERNAME" \
+#       -p "PASSWORD" \
+#       last_weeks_time.json
+
+# Refs
+# ----
+#
+# You can find the relatively simple JIRA Tempo API at tempo.io:
+#
+#   http://tempo.io/doc/core/api/rest/latest/
+#
+#   http://tempo.io/doc/timesheets/api/rest/latest/#848933329
+#
+# The call is basically GET and POST to
+#
+#   http://{JIRA_BASE_URL}/rest/tempo-timesheets/3/worklogs
+#
+# and you can also deal with approvals via
+#
+#   http://{JIRA_BASE_URL}/rest/tempo-timesheets/3/timesheet-approval/
+#
+# but we're just pushing time.
+#
+# We don't need to get anything, or to approve anything.
+
+# Manually testing Tempo
+# ----------------------
+#
+#    curl https://path.to/jira/rest/tempo-timesheets/3/worklogs \
+#        -D- -u USERNAME:PASSWORD \
+#        -H "Content-Type: application/json; charset=UTF-8" \
+#        -X POST \
+#        -d '{
+#              "dateStarted": "2016-10-24T00:00:00.000+0000",
+#              "timeSpentSeconds": "3600",
+#              "comment": "Tempo Training. \n\nTesting newlines in comment.",
+#              "issue": {
+#                "projectId": "12310",
+#                "key": "INT-7"
+#              },
+#              "author": {
+#                "name": "yourname"
+#              }
+#            }'
 
 import os
 import sys
