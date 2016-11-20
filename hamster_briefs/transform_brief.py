@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Last Modified: 2016.11.19 /coding: utf-8
+# Last Modified: 2016.11.20 /coding: utf-8
 # Copyright: © 2016 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -85,44 +85,53 @@ import os
 import sys
 
 import datetime
-#import json
 import re
 
-# C [code] H[uman] JSON
-#  https://github.com/landonb/chjson
-import chjson
+try:
+	# C [code] H[uman] JSON
+	#  https://github.com/landonb/chjson
+	import chjson
+	json_encode = chjson.encode
+	json_decode = chjson.decode
+except ImportError:
+	import json
+	json_encode = json.dumps
+	json_decode = json.loads
 
 # Requests refs:
 #  http://docs.python-requests.org/en/master/
 import requests
 
-sys.path.append('%s/lib' % (os.path.abspath(sys.path[0]),))
-from lib import argparse_wrap
+#sys.path.append('%s/lib' % (os.path.abspath(sys.path[0]),))
+#from lib import argparse_wrap
+import pyoiler_argparse
 
 import logging
-from lib import logging2
-logging2.init_logging(logging.DEBUG, log_to_console=True)
+#from lib import logging2
+import pyoiler_logging
+pyoiler_logging.init_logging(logging.DEBUG, log_to_console=True)
 log = logging.getLogger('transform-brief')
 
 SCRIPT_DESC = 'Hamster Brief Transformation Tool'
-SCRIPT_VERS = '0.1a'
+#SCRIPT_VERS = '0.1a'
+import hamster_briefs.version_hamster
 
 # 2016-11-17: This script is a little green, and there's nothing
 # coded to quickly remove rogue entries, so ask user if the input
 # exceeds this many entries.
 NUM_ENTRIES_LIMIT_ASK = 20
 
-class TxTl_Argparser(argparse_wrap.ArgumentParser_Wrap):
+class TxTl_Argparser(pyoiler_argparse.ArgumentParser_Wrap):
 
 	def __init__(self):
-		argparse_wrap.ArgumentParser_Wrap.__init__(self,
+		pyoiler_argparse.ArgumentParser_Wrap.__init__(self,
 			description=SCRIPT_DESC,
 			script_name=None,
-			script_version=SCRIPT_VERS,
+			script_version=hamster_briefs.version_hamster.SCRIPT_VERS,
 			usage=None)
 
 	def prepare(self):
-		argparse_wrap.ArgumentParser_Wrap.prepare(self)
+		pyoiler_argparse.ArgumentParser_Wrap.prepare(self)
 
 		self.add_argument(metavar='briefs-file',
 			type=str, dest='briefs_file',
@@ -146,14 +155,14 @@ class TxTl_Argparser(argparse_wrap.ArgumentParser_Wrap):
 		)
 
 	def verify(self):
-		ok = argparse_wrap.ArgumentParser_Wrap.verify(self)
+		ok = pyoiler_argparse.ArgumentParser_Wrap.verify(self)
 
 		return ok
 
-class Transformer(argparse_wrap.Simple_Script_Base):
+class Transformer(pyoiler_argparse.Simple_Script_Base):
 
 	def __init__(self, argparser=TxTl_Argparser):
-		argparse_wrap.Simple_Script_Base.__init__(self, argparser)
+		pyoiler_argparse.Simple_Script_Base.__init__(self, argparser)
 
 	def go_main(self):
 		log.debug('go_main: cli_opts: %s' % (self.cli_opts,))
@@ -173,8 +182,7 @@ class Transformer(argparse_wrap.Simple_Script_Base):
 				if line:
 					self.read_brief_line(line)
 
-		#print(json.dumps(self.entries, sort_keys=True, indent=4))
-		print(chjson.encode(self.entries, sort_keys=True, indent=4))
+		print(json_encode(self.entries, sort_keys=True, indent=4))
 
 	def read_brief_line(self, line):
 		try:
@@ -219,8 +227,7 @@ class Transformer(argparse_wrap.Simple_Script_Base):
 
 		self.entries = []
 		with open(self.cli_opts.briefs_file, 'r') as briefs_f:
-			#self.entries = json.loads(briefs_f.read())
-			self.entries = chjson.decode(briefs_f.read())
+			self.entries = json_decode(briefs_f.read())
 
 		# Ask for permission there are lots of entries.
 		self.check_if_oh_so_many()
@@ -253,7 +260,7 @@ class Transformer(argparse_wrap.Simple_Script_Base):
 			)
 			with open(fail_file, 'x') as fail_f:
 				for entry in self.failed_reqs:
-					fail_f.write(chjson.encode(entry))
+					fail_f.write(json_encode(entry))
 			print(
 				"ERROR: Encountered %d error(s) during upload."
 				% (len(self.failed_reqs),)
@@ -298,8 +305,7 @@ class Transformer(argparse_wrap.Simple_Script_Base):
 		self.output_header_tempo(forreal)
 
 		#print(self.entries)
-		##print(json.dumps(self.entries, sort_keys=True, indent=4))
-		#print(chjson.encode(self.entries, sort_keys=True, indent=4))
+		#print(json_encode(self.entries, sort_keys=True, indent=4))
 
 		proj_id_parser = re.compile(r'.* \[(\d+):(\d+):([-a-zA-Z0-9]+)\]\w*')
 
@@ -354,8 +360,7 @@ class Transformer(argparse_wrap.Simple_Script_Base):
 
 			headers = {'content-type': 'application/json',}
 			if not forreal:
-				#json.dumps(curr_entry)
-				chjson.encode(curr_entry)
+				json_encode(curr_entry)
 				#print(curr_entry)
 				print("Entry: date: %s / time: %s" % (
 					curr_entry['dateStarted'],
@@ -372,8 +377,7 @@ class Transformer(argparse_wrap.Simple_Script_Base):
 				req = requests.post(
 					self.cli_opts.tempo_url + '/rest/tempo-timesheets/3/worklogs',
 					auth=(self.cli_opts.username, self.cli_opts.password),
-					#data=json.dumps(curr_entry),
-					data=chjson.encode(curr_entry),
+					data=json_encode(curr_entry),
 					headers=headers,
 				)
 				# req.text/req.content is the server response, which
@@ -406,7 +410,10 @@ class Transformer(argparse_wrap.Simple_Script_Base):
 			print("  %s/secure/TempoUserBoard!timesheet.jspa" % (self.cli_opts.tempo_url,))
 			print()
 
-if (__name__ == '__main__'):
+def main():
 	hr = Transformer()
 	hr.go()
+
+if (__name__ == '__main__'):
+	main()
 
