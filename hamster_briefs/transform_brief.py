@@ -102,12 +102,9 @@ except ImportError:
 #  http://docs.python-requests.org/en/master/
 import requests
 
-#sys.path.append('%s/lib' % (os.path.abspath(sys.path[0]),))
-#from lib import argparse_wrap
 import pyoiler_argparse
 
 import logging
-#from lib import logging2
 import pyoiler_logging
 pyoiler_logging.init_logging(logging.DEBUG, log_to_console=True)
 log = logging.getLogger('transform-brief')

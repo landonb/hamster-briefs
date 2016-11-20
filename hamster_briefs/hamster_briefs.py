@@ -1,10 +1,17 @@
 #!/usr/bin/env python3.5
 # (Using py3.5 for subprocess.run().)
-# Last Modified: 2016.11.15 /coding: utf-8
+# Last Modified: 2016.11.20 /coding: utf-8
 # Copyright: © 2016 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
-# FIXME: SQL_EXTERNAL: Not working on Mint 18 (where SQL_EXTERNAL=False)
+# FIXME: Distinguish btw. SQLite3 versions to decide whether
+#        to run subprocess or not.
+#        Problem is, on Mint 18 (Ubuntu 14.04), Python's SQLite3
+#        is too-old version, and it's not easy (nor wise) to
+#        fiddle with Python's built-ins (you trust building Python
+#        from scratch? Not that you can't do it, but that you wouldn't
+#        mess something else up?).
+#        (MAYBE: OR: Don't case. Just use subprocess. Simplify.)
 
 import os
 import sys
@@ -15,18 +22,16 @@ import sqlite3
 import subprocess
 import time
 
-# MAYBE: Install pyoilerplate to site-packages and treat as 3d party lib.
-sys.path.append('%s/lib' % (os.path.abspath(sys.path[0]),))
-from lib import argparse_wrap
+import pyoiler_argparse
 
 import logging
-from lib import logging2
-logging2.init_logging(logging.DEBUG, log_to_console=True)
-log = logging.getLogger('hamster_briefs')
+import pyoiler_logging
+pyoiler_logging.init_logging(pyoiler_logging.DEBUG, log_to_console=True)
+log = logging.getLogger('hamster-briefs')
 
-SCRIPT_DESC = '''verb / 3rd person present: briefs / 1.
-instruct or inform (someone) thoroughly, especially in preparation for a task.'''
-SCRIPT_VERS = '0.9'
+import hamster_briefs.version_hamster
+
+SCRIPT_DESC = '''verb / 3rd person present: briefs / 1. instruct or inform (someone) thoroughly, especially in preparation for a task.'''
 
 # DEVs: Set to True for better error message if sqlite3 query fails.
 #       Include stderr messages, including, e.g.,
@@ -34,7 +39,7 @@ SCRIPT_VERS = '0.9'
 LEAK_SQLITE3_ERRORS=False
 #LEAK_SQLITE3_ERRORS=True
 
-class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
+class HR_Argparser(pyoiler_argparse.ArgumentParser_Wrap):
 
 	all_report_types = set([
 		'all',
@@ -117,14 +122,14 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 	}
 
 	def __init__(self):
-		argparse_wrap.ArgumentParser_Wrap.__init__(self,
+		pyoiler_argparse.ArgumentParser_Wrap.__init__(self,
 			description=SCRIPT_DESC,
 			script_name=None,
-			script_version=SCRIPT_VERS,
+			script_version=hamster_briefs.version_hamster.SCRIPT_VERS,
 			usage=None)
 
 	def prepare(self):
-		argparse_wrap.ArgumentParser_Wrap.prepare(self)
+		pyoiler_argparse.ArgumentParser_Wrap.prepare(self)
 
 		self.add_argument('-b', '--beg', dest='time_beg',
 			type=str, metavar='BEG_DATE', default=None
@@ -249,16 +254,16 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 		#                said facts, or restoring a backup of hamster.db.
 
 	def verify(self):
-		ok = argparse_wrap.ArgumentParser_Wrap.verify(self)
+		ok = pyoiler_argparse.ArgumentParser_Wrap.verify(self)
 
 		self.cli_opts.cli_optsless = False
 
 		if self.cli_opts.be_verbose:
-			log.setLevel(logging.DEBUG)
+			log.setLevel(pyoiler_logging.DEBUG)
 		elif self.cli_opts.show_sql:
-			log.setLevel(logging.INFO)
+			log.setLevel(pyoiler_logging.INFO)
 		else:
-			log.setLevel(logging.WARNING)
+			log.setLevel(pyoiler_logging.WARNING)
 
 		if self.cli_opts.week_starts:
 			try:
@@ -535,10 +540,10 @@ class HR_Argparser(argparse_wrap.ArgumentParser_Wrap):
 		return ok
 		# end: setup_do_list_types
 
-class Hamsterer(argparse_wrap.Simple_Script_Base):
+class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 
 	def __init__(self, argparser=HR_Argparser):
-		argparse_wrap.Simple_Script_Base.__init__(self, argparser)
+		pyoiler_argparse.Simple_Script_Base.__init__(self, argparser)
 
 	def go_main(self):
 		log.debug('go_main: cli_opts: %s' % (self.cli_opts,))
@@ -870,7 +875,7 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 			log.fatal('sql_select: %s' % (sql_select,))
 			log.fatal('sql_params: %s' % (self.sql_params,))
 # WRONG ? substitution order!
-# Mon, 26 Sep 2016 12:28:41 CRIT argparse_wrap # sql_params: ['exosite', '2016-09-17', datetime.date(2016, 9, 27)]
+# Mon, 26 Sep 2016 12:28:41 CRIT pyoiler_argparse # sql_params: ['exosite', '2016-09-17', datetime.date(2016, 9, 27)]
 
 
 			try:
@@ -1346,7 +1351,10 @@ class Hamsterer(argparse_wrap.Simple_Script_Base):
 			sql_select, output_split_days=self.cli_opts.output_split_days
 		)
 
-if (__name__ == '__main__'):
+def main():
 	hr = Hamsterer()
 	hr.go()
+
+if (__name__ == '__main__'):
+	main()
 
