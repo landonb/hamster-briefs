@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Last Modified: 2016.11.18 /coding: utf-8
+# Last Modified: 2016.11.19 /coding: utf-8
 # Copyright: © 2016 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -9,7 +9,7 @@
 # FIXME/2016-10-10: New feature to skip comments after EOF or RAMBLING
 #                   (make new switch).
 #
-# FIXME/2016-10-10: hamster_briefs.py: Fix multi-word -a option.
+# FIXME/2016-10-10: hamster-briefs.py: Fix multi-word -a option.
 #                   Doesn't work: time-exo.sh -2 -r all -a "Genie - Billable"
 
 
@@ -25,7 +25,7 @@
 
 # Generate a report from Hamster-briefs:
 #
-#   ./hamster_briefs.sh -2 -E > last_weeks_time.raw
+#   ./hamster-briefs.sh -2 -E > last_weeks_time.raw
 #
 # Convert the report to HJSON that you can edit
 # and comment (and store for posterity).
@@ -126,7 +126,7 @@ class TxTl_Argparser(argparse_wrap.ArgumentParser_Wrap):
 
 		self.add_argument(metavar='briefs-file',
 			type=str, dest='briefs_file',
-			help="a file created by ./hamster_briefs -E",
+			help="a file created by ./hamster-briefs -E",
 		)
 
 		self.add_argument('-r', '--read-brief', dest='read_hamster_brief',
@@ -327,7 +327,7 @@ class Transformer(argparse_wrap.Simple_Script_Base):
 			#   exo__CLIENT-TICKETNUMBER__JIRAKEYID
 			if entry['tags']:
 				# The user can use more than one tag, which hamster, er,
-				# sqlite3 (hamster_briefs) combines with commas.
+				# sqlite3 (hamster-briefs) combines with commas.
 				tags = entry['tags'].split(',')
 				for tag in tags:
 					try:
