@@ -11,34 +11,34 @@ Show what you've been working on today:
 
 .. code-block:: bash
 
-    ./hamster_briefs.py --today
+    hamster-briefs --today
 
     # Or more simply:
 
-    ./hamster_briefs.py -0
+    hamster-briefs -0
 
 Summarize just the time spent working on a specific category this week.
 
 .. code-block:: bash
 
-    ./hamster_briefs.py -c "category" --this-week
+    hamster-briefs -c "category" --this-week
 
     # Or more simply:
 
-    ./hamster_briefs.py -c "category" -1
+    hamster-briefs -c "category" -1
 
 Show a summary of time spent on certain activities for the current month.
 
 .. code-block:: bash
 
-    ./hamster_briefs.py -a "activity" -a "another" --this-month
+    hamster-briefs -a "activity" -a "another" --this-month
 
 Show hours you've spent on different activities for the current sprint
 (which starts on a Saturday) for some given client.
 
 .. code-block:: bash
 
-    ./hamster_briefs.py \
+    hamster-briefs \
         -c 'some_client' \
         -c 'client-tickets' \
         -w 'sat' \
@@ -50,7 +50,7 @@ automatically to a timesheet service, like Atlassian's JIRA's Tempo.
 
 .. code-block:: bash
 
-    ./hamster_briefs.py \
+    hamster-briefs \
         -c 'some_client' \
         -c 'client-tickets' \
         -w 'sat' \
@@ -78,10 +78,13 @@ Edit ``last_weeks_time.json`` and then send it to JIRA Tempo.
 
 Or write your own shim to some other API.
 
-See ``./hamster_briefs.py --help`` for all the options.
+See ``hamster-briefs --help`` for all the options.
 
 Installation
 ============
+
+Python >=3.5
+------------
 
 Requires Python >= 3.5 (for ``subprocess.run``).
 
@@ -92,6 +95,9 @@ If your distro doesn't include Python 3.5, grab it from ``deadsnakes``.
     sudo add-apt-repository -y ppa:fkrull/deadsnakes
     sudo apt-get update -y
     sudo apt-get install -y python3.5
+
+SQLite3
+-------
 
 Python3 includes its own SQLite3 implementation, but if you'd like
 to poke around your ``hamster.db``, install SQLite3.
@@ -116,6 +122,9 @@ on such a machine, install the latest version of sqlite3, e.g.,
 
 ... or you could install to some place on ``$PATH`` that precedes ``/usr/bin``.
 
+Hamster Applet
+--------------
+
 - You'll also want the hamster applet:
 
   https://projecthamster.wordpress.com/
@@ -125,13 +134,20 @@ on such a machine, install the latest version of sqlite3, e.g.,
   https://github.com/landonb/hamster-applet
 
 Chjson
-======
+------
 
 - You'll need the human JSON parser (because I like to comment JSON files, duh).
 
   https://github.com/landonb/chjson
 
   Follow the simple installation instructions on the ``chjson`` README.
+
+Pip!
+----
+
+Install ``hamster-briefs`` with ``pip``::
+
+    pip install git+https://github.com/landonb/hamster-briefs
 
 Options
 =======
