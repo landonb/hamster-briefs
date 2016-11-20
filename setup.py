@@ -11,9 +11,35 @@ from setuptools import setup, find_packages
 from codecs import open
 from os import path
 
-here = path.abspath(path.dirname(__file__))
+# Load the hamster_briefs module. If it's already installed,
+# it doesn't matter, since Python looks locally first.
+from hamster_briefs import version_hamster
+
+# I [lb] don't quite get the version postfix -- it's required, otherwise pip
+# won't find the project on GitHub. The confusing part seems to be that the
+# version doesn't matter. All of these projects are version 0.1.0 (at least
+# in setup.py), but I've never tagged them in GitHub. But with the -10.0,
+# or -1.0, -99999, or -2, they all work; but without the -n postfix, they
+# don't work.
+# Ref: GitHub API: Get archive link
+#   https://developer.github.com/v3/repos/contents/#get-archive-link
+# Group discuss:
+#   https://groups.google.com/forum/#!topic/pypa-dev/tJ6HHPQpyJ4
+#
+# But whatever. The `dependency_links` feature is deprecated. E.g., don't do:
+#
+#       pip install -v --user --process-dependency-links -e .
+#
+# but use a requirements.txt instead.
+dependency_links_github=[
+    'https://github.com/landonb/pyoiler-argparse/tarball/master#egg=pyoiler-argparse-10.0',
+    'https://github.com/landonb/pyoiler-inflector/tarball/master#egg=pyoiler-inflector-1.0',
+    'https://github.com/landonb/pyoiler-logging/tarball/master#egg=pyoiler-logging-99999',
+    'https://github.com/landonb/pyoiler-timedelta/tarball/master#egg=pyoiler-timedelta-2',
+]
 
 # Get the long description from the README file
+here = path.abspath(path.dirname(__file__))
 with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
     long_description = f.read()
 
@@ -80,9 +106,16 @@ setup(
     # List run-time dependencies here.  These will be installed by pip when
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
-    # https://packaging.python.org/en/latest/requirements.html
-    #install_requires=['peppercorn'],
-    #install_requires=[],
+    #   https://packaging.python.org/en/latest/requirements.html
+    install_requires=[
+        'pyoiler_argparse',
+        'pyoiler_inflector',
+        'pyoiler_logging',
+        'pyoiler_timedelta',
+    ],
+
+    # See above. Use requirements.txt, not dependency_links.
+    #dependency_links=dependency_links_github,
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
@@ -113,10 +146,12 @@ setup(
     # [lb]: This installs to /usr/local/bin, e.g., if you don't sudo:
     #   Installing pyoiler_inflector script to /usr/local/bin
     #   error: [Errno 13] Permission denied: '/usr/local/bin/pyoiler_inflector'
-    #entry_points={
-    #    'console_scripts': [
-    #        'pyoiler_inflector=pyoiler_inflector:main',
-    #    ],
-    #},
+    entry_points={
+        'console_scripts': [
+            'hamster-briefs=hamster_briefs.hamster_briefs:main',
+            'hamster-love=hamster_briefs.hamster_love:main',
+            'transform-brief=hamster_briefs.transform_brief:main',
+        ],
+    },
 )
 
