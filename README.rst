@@ -4,6 +4,35 @@ HAMSTER BRIEFS
 
 *hamster.db time reporting and summarization tool.*
 
+Installation
+============
+
+Pip!
+----
+
+Install ``hamster-briefs`` with ``pip``::
+
+    pip3 install git+https://github.com/landonb/hamster-briefs.git#egg=hamster-briefs
+
+.. pip install git+https://github.com/landonb/hamster-briefs
+
+Devs
+----
+
+If you'd like to check out the source and install that, try::
+
+    git clone https://github.com/landonb/hamster-briefs.git
+
+    cd hamster-briefs
+
+    pip3 install --user -r requirements.txt .
+
+    # Or, if you're adventurous:
+    #
+    #  sudo pip3 install -r requirements.txt .
+
+See more complete installation instructions below.
+
 Usage
 =====
 
@@ -136,18 +165,16 @@ Hamster Applet
 Chjson
 ------
 
+If you're like me and like to add comments to JSON, install ``chjson``.
+
+I curate my timesheets before submitting them, and I store them for
+all eternity, so it's nice to be able to mark 'em up with comments.
+
 - You'll need the human JSON parser (because I like to comment JSON files, duh).
 
   https://github.com/landonb/chjson
 
   Follow the simple installation instructions on the ``chjson`` README.
-
-Pip!
-----
-
-Install ``hamster-briefs`` with ``pip``::
-
-    pip install git+https://github.com/landonb/hamster-briefs
 
 Options
 =======
