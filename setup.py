@@ -23,7 +23,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='0.1.0',
+    version=version_hamster.SCRIPT_VERS,
 
     description="hamster.db analysis and reporting tool",
     long_description=long_description,
