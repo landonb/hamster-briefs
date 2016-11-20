@@ -4,35 +4,6 @@ HAMSTER BRIEFS
 
 *hamster.db time reporting and summarization tool.*
 
-Installation
-============
-
-Pip!
-----
-
-Install ``hamster-briefs`` with ``pip``::
-
-    pip3 install git+https://github.com/landonb/hamster-briefs.git#egg=hamster-briefs
-
-.. pip install git+https://github.com/landonb/hamster-briefs
-
-Devs
-----
-
-If you'd like to check out the source and install that, try::
-
-    git clone https://github.com/landonb/hamster-briefs.git
-
-    cd hamster-briefs
-
-    pip3 install --user -r requirements.txt .
-
-    # Or, if you're adventurous:
-    #
-    #  sudo pip3 install -r requirements.txt .
-
-See more complete installation instructions below.
-
 Usage
 =====
 
@@ -63,7 +34,7 @@ Show a summary of time spent on certain activities for the current month.
     hamster-briefs -a "activity" -a "another" --this-month
 
 Show hours you've spent on different activities for the current sprint
-(which starts on a Saturday) for some given client.
+(which ``-w`` starts on a Saturday) for some given client.
 
 .. code-block:: bash
 
@@ -75,7 +46,7 @@ Show hours you've spent on different activities for the current sprint
 
 Export last week's (last sprint's) entries as input to ``transform-brief.py``,
 which lets you aggregate facts by activity, tags, and day, to be submitted
-automatically to a timesheet service, like Atlassian's JIRA's Tempo.
+automatically to a time sheet service, like Atlassian JIRA Tempo.
 
 .. code-block:: bash
 
@@ -95,7 +66,9 @@ Transform the aggregated facts in more easily editable, pretty-printed JSON:
         -r last_weeks_time.raw \
         > last_weeks_time.json
 
-Edit ``last_weeks_time.json`` and then send it to JIRA Tempo.
+Edit ``last_weeks_time.json``.
+
+Finally, send the work log entries to JIRA Tempo.
 
 .. code-block:: bash
 
@@ -110,6 +83,48 @@ Or write your own shim to some other API.
 See ``hamster-briefs --help`` for all the options.
 
 Installation
+============
+
+Pip!
+----
+
+Install ``hamster-briefs`` with ``pip``::
+
+    pip3 install --user git+https://github.com/landonb/hamster-briefs \
+        -r https://raw.githubusercontent.com/landonb/hamster-briefs/master/requirements.txt
+
+NOTE: This populates a local directory, ``src/``, with the dependencies,
+which are git repositories.
+
+You can choose another path for the cloned git repos using ``--src``, e.g.,::
+
+    pip3 install --user git+https://github.com/landonb/hamster-briefs \
+        -r https://raw.githubusercontent.com/landonb/hamster-briefs/master/requirements.txt \
+        --src /path/to/a/different/source/checkout/src
+
+(I'll get this project on `PyPI <https://pypi.python.org/pypi>`__ 
+someday and then you won't have to do this dance.)
+
+Devs
+----
+
+If you'd like to check out the source and install that, try::
+
+    cd path/to/
+
+    git clone https://github.com/landonb/hamster-briefs.git
+
+    cd hamster-briefs
+
+    pip3 install --user -r requirements.txt .
+
+    # Or, if you're adventurous:
+    #
+    #  sudo pip3 install -r requirements.txt .
+
+See more complete installation instructions below.
+
+Dependencies
 ============
 
 Python >=3.5
