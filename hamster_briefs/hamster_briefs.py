@@ -1,6 +1,6 @@
 #!/usr/bin/env python3.5
 # (Using py3.5 for subprocess.run().)
-# Last Modified: 2016.11.20 /coding: utf-8
+# Last Modified: 2016.11.21 /coding: utf-8
 # Copyright: © 2016 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -926,8 +926,20 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 
 					curr_first_col = None
 					last_first_col = None
+
 					# Process stdout.
-					outlns = ret.stdout.decode("utf-8").split('\n')
+					outlns_ = ret.stdout.decode("utf-8").split('\n')
+					outlns = []
+					for outln_ in outlns_:
+						npipes = outln_.count('|')
+						print("npipes: %s" % (npipes,))
+						if npipes == 0:
+							if not outlns and not outln_:
+								continue
+							outlns[-1] = outlns[-1] + '\\n\\n' + outln_
+						else:
+							outlns.append(outln_)
+
 					for outln in outlns:
 						if outln:
 							if output_split_days:
@@ -1315,7 +1327,6 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 				output_split_days=self.cli_opts.output_split_days
 			)
 			return
-
 
 		sql_select = """
 			SELECT
