@@ -33,8 +33,8 @@ Show a summary of time spent on certain activities for the current month.
 
     hamster-briefs -a "activity" -a "another" --this-month
 
-Show hours you've spent on different activities for the current sprint for
-some given client. The ``-w 'sat'`` indicates that sprints start on Saturday.
+Show hours you've spent on different activities for the current sprint for some
+given client. The ``-w 'sat'`` indicates that the sprint started on Saturday.
 
 .. code-block:: bash
 
