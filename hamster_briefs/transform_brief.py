@@ -207,7 +207,9 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 		idx = 0
 		while idx < (len(dnts) / 2):
 			ridx = idx * 2
-			desctimes.append("%s [%s]" % (dnts[ridx], round(float(dnts[ridx + 1]), 3),))
+			fact_comment = dnts[ridx].replace('\\n\\n', '\n')
+			fact_duration = round(float(dnts[ridx + 1]), 3)
+			desctimes.append("%s [%s]" % (fact_comment, fact_duration,))
 			idx += 1
 
 		new_entry = {
