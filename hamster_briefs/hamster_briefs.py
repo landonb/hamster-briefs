@@ -859,6 +859,20 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 				self.str_params['SQL_ACTS_AND_TAGS'],
 			)
 
+	def output_reassemble_split_line_comments(self, outlns):
+		outlns_ = []
+		for outln in outlns:
+			npipes = outln.count('|')
+			#print("npipes: %s" % (npipes,))
+			if npipes == 0:
+				if not outlns_ and not outln:
+					continue
+				if outln:
+					outlns_[-1] = outlns_[-1] + '\\n\\n' + outln
+			else:
+				outlns_.append(outln)
+		return outlns_
+
 	def print_output_generic_fcn_name(
 		self,
 		sql_select,
@@ -912,6 +926,7 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 					ret = subprocess.check_output(sql_args)
 					ret = ret.decode("utf-8")
 					lines = ret.split('\n')
+					lines = self.output_reassemble_split_line_comments(lines)
 					n_facts = 0
 					for line in lines:
 						if line:
@@ -928,17 +943,8 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 					last_first_col = None
 
 					# Process stdout.
-					outlns_ = ret.stdout.decode("utf-8").split('\n')
-					outlns = []
-					for outln_ in outlns_:
-						npipes = outln_.count('|')
-						print("npipes: %s" % (npipes,))
-						if npipes == 0:
-							if not outlns and not outln_:
-								continue
-							outlns[-1] = outlns[-1] + '\\n\\n' + outln_
-						else:
-							outlns.append(outln_)
+					outlns = ret.stdout.decode("utf-8").split('\n')
+					outlns = self.output_reassemble_split_line_comments(outlns)
 
 					for outln in outlns:
 						if outln:
