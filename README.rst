@@ -102,7 +102,9 @@ someday and then you won't have to do this dance.)
 Devs
 ----
 
-If you'd like to check out the source and install that, try::
+If you'd like to check out the source and install that, try:
+
+.. code-block:: bash
 
     cd /animalia/chordata/mammalia/rodentia/cricetidae/cricetinae
 
@@ -117,7 +119,9 @@ If you'd like to check out the source and install that, try::
     #  sudo pip3 install -r requirements.txt .
 
 But you probably don't want the dependencies under ``hamster-briefs``,
-so grab them first and *then* install ``hamster-briefs``.::
+so grab them first and *then* install ``hamster-briefs``.:
+
+.. code-block:: bash
 
     cd /hamstercraft
 
@@ -144,6 +148,27 @@ so grab them first and *then* install ``hamster-briefs``.::
         --user \
         --verbose \
         -e .
+
+Or better yet:
+
+.. code-block:: bash
+
+    source_pyoilers_editable_user_install () {
+        while IFS= read -r -d '' pyoiler_path; do
+            echo "============================================"
+            echo "Preparing ${pyoiler_path}"
+            echo "============================================"
+            pushd ${pyoiler_path} &> /dev/null
+            pip install --user -e .
+            popd &> /dev/null
+        done < <(find . -maxdepth 1 -type d -name "pyoiler-*" -print0)
+    }
+
+    cd /pyoilerplate/
+    source_pyoilers_editable_user_install
+
+    cd /hamstercraft/hamster-briefs
+    pip install --user -v -e .
 
 Dependencies
 ============
