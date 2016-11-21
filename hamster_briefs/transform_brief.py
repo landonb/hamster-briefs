@@ -251,6 +251,9 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 		if self.failed_reqs:
 			now = datetime.datetime.now()
 			fail_file = "%s-%s-%02d%02d%02d.json" % (
+				# FIXME/MAYBE: Anyone care about using a magic date format remover?
+# FIXME/2016-11-21: This is new. TESTME.
+				re.sub('\d{4}-\d{2}-\d{2}-\d{6}\.json$', '', self.cli_opts.briefs_file),
 				# FIXME/MAYBE: Anyone care about using a MAGIC NAME?
 				re.sub('\.json$', '', self.cli_opts.briefs_file),
 				datetime.date.today().isoformat(),
