@@ -33,8 +33,8 @@ Show a summary of time spent on certain activities for the current month.
 
     hamster-briefs -a "activity" -a "another" --this-month
 
-Show hours you've spent on different activities for the current sprint
-(which ``-w`` starts on a Saturday) for some given client.
+Show hours you've spent on different activities for the current sprint for
+some given client. The ``-w 'sat'`` indicates that sprints start on Saturday.
 
 .. code-block:: bash
 
@@ -44,31 +44,25 @@ Show hours you've spent on different activities for the current sprint
         -w 'sat' \
         -1
 
-Export last week's (last sprint's) entries as input to ``transform-brief.py``,
-which lets you aggregate facts by activity, tags, and day, to be submitted
-automatically to a time sheet service, like Atlassian JIRA Tempo.
+Prepare last week's time sheet. First output the entries from the
+sprint, aggregated by activity, tags, and day. This includes all
+your priceless comments.
 
 .. code-block:: bash
 
-    hamster-briefs \
-        -c 'some_client' \
-        -c 'client-tickets' \
-        -w 'sat' \
-        -2 \
-        -E \
-        > last_weeks_time.raw
+    hamster-briefs -2 -E > last_weeks_time.raw
 
-Transform the aggregated facts in more easily editable, pretty-printed JSON:
+Convert the SQLite3 output to a JSON file that you can verify
+and edit, if you want, before uploading it to a time tracking
+service, such as Atlassian JIRA Tempo.
 
 .. code-block:: bash
 
-    ./transform-brief.py \
-        -r last_weeks_time.raw \
-        > last_weeks_time.json
+    ./transform-brief.py -r last_weeks_time.raw > last_weeks_time.json
 
 Edit ``last_weeks_time.json``.
 
-Finally, send the work log entries to JIRA Tempo.
+And then send the work log entries to JIRA Tempo.
 
 .. code-block:: bash
 
@@ -110,7 +104,7 @@ Devs
 
 If you'd like to check out the source and install that, try::
 
-    cd path/to/
+    cd /animalia/chordata/mammalia/rodentia/cricetidae/cricetinae
 
     git clone https://github.com/landonb/hamster-briefs.git
 
@@ -122,7 +116,34 @@ If you'd like to check out the source and install that, try::
     #
     #  sudo pip3 install -r requirements.txt .
 
-See more complete installation instructions below.
+But you probably don't want the dependencies under ``hamster-briefs``,
+so grab them first and *then* install ``hamster-briefs``.::
+
+    cd /hamstercraft
+
+    git clone https://github.com/landonb/pyoiler-argparse.git
+    git clone https://github.com/landonb/pyoiler-inflector.git
+    git clone https://github.com/landonb/pyoiler-logging.git
+    git clone https://github.com/landonb/pyoiler-timedelta.git
+
+    while IFS= read -r -d '' pyoiler_path; do
+        pushd ${pyoiler_path}
+        python setup.py sdist
+        popd
+    done < <(find . -maxdepth 1 -type d -name "pyoiler-*" -print0)
+
+    git clone https://github.com/landonb/hamster-briefs.git
+
+    cd hamster-briefs
+
+    pip install \
+        --find-links /hamstercraft/pyoiler-argparse/dist \
+        --find-links /hamstercraft/pyoiler-inflector/dist \
+        --find-links /hamstercraft/pyoiler-logging/dist \
+        --find-links /hamstercraft/pyoiler-timedelta/dist \
+        --user \
+        --verbose \
+        -e .
 
 Dependencies
 ============
