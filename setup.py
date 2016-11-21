@@ -149,7 +149,7 @@ setup(
     entry_points={
         'console_scripts': [
             'hamster-briefs=hamster_briefs.hamster_briefs:main',
-            'hamster-love=hamster_briefs.hamster_love:main',
+            'hamster-love=hamster_briefs:run_hamster_love',
             'transform-brief=hamster_briefs.transform_brief:main',
         ],
     },
