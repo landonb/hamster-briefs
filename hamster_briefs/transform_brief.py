@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Last Modified: 2016.11.20 /coding: utf-8
+# Last Modified: 2016.11.21 /coding: utf-8
 # Copyright: © 2016 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -87,6 +87,7 @@ import sys
 import datetime
 import re
 
+import json
 try:
 	# C [code] H[uman] JSON
 	#  https://github.com/landonb/chjson
@@ -94,7 +95,6 @@ try:
 	json_encode = chjson.encode
 	json_decode = chjson.decode
 except ImportError:
-	import json
 	json_encode = json.dumps
 	json_decode = json.loads
 
@@ -179,7 +179,8 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 				if line:
 					self.read_brief_line(line)
 
-		print(json_encode(self.entries, sort_keys=True, indent=4))
+		#print(json_encode(self.entries))
+		print(json.dumps(self.entries, sort_keys=True, indent=4))
 
 	def read_brief_line(self, line):
 		try:
@@ -256,8 +257,9 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 				now.hour, now.minute, now.second,
 			)
 			with open(fail_file, 'x') as fail_f:
-				for entry in self.failed_reqs:
-					fail_f.write(json_encode(entry))
+				#for entry in self.failed_reqs:
+				#	fail_f.write(json_encode(entry))
+				fail_f.write(json.dumps(self.failed_reqs, sort_keys=True, indent=4))
 			print(
 				"ERROR: Encountered %d error(s) during upload."
 				% (len(self.failed_reqs),)
@@ -302,7 +304,7 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 		self.output_header_tempo(forreal)
 
 		#print(self.entries)
-		#print(json_encode(self.entries, sort_keys=True, indent=4))
+		#print(json.dumps(self.entries, sort_keys=True, indent=4))
 
 		proj_id_parser = re.compile(r'.* \[(\d+):(\d+):([-a-zA-Z0-9]+)\]\w*')
 
@@ -312,6 +314,7 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 
 			# The project ID and item key are encoded in the Activity name.
 			mat = proj_id_parser.match(entry['activity_name'])
+
 			tup = mat.groups() if mat else None
 			if not tup:
 				self.parse_errs.append("ERROR: Activity name missing JIRA IDs: %s" % (entry['activity_name'],))
