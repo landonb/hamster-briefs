@@ -159,7 +159,7 @@ Or better yet:
             echo "Preparing ${pyoiler_path}"
             echo "============================================"
             pushd ${pyoiler_path} &> /dev/null
-            pip install --user -e .
+            pip3 install --user -e .
             popd &> /dev/null
         done < <(find . -maxdepth 1 -type d -name "pyoiler-*" -print0)
     }
@@ -167,8 +167,12 @@ Or better yet:
     cd /pyoilerplate/
     source_pyoilers_editable_user_install
 
+    # MAYBE/2016-11-28: Having issues in 14.04 (where py3.5 comes from deadsnakes).
+    # Is this necessary:
+    #  sudo pip3 install setuptools
+
     cd /hamstercraft/hamster-briefs
-    pip install --user -v -e .
+    pip3 install --user -v -e .
 
 Dependencies
 ============
