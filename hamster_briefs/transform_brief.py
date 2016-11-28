@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Last Modified: 2016.11.21 /coding: utf-8
+# Last Modified: 2016.11.28 /coding: utf-8
 # Copyright: © 2016 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -184,15 +184,17 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 
 	def read_brief_line(self, line):
 		try:
+			num_fields = 8
 			(
 			year_month_day,
 			time_spent,
 			category,
 			activity_name,
 			activity_id,
+			fact_id,
 			tags,
 			desc_time_tuples,
-			) = line.split("|", 6)
+			) = line.split("|", num_fields-1)
 		except Exception as err:
 			log.fatal('read_briefs: invalid line: %s' % (line,))
 			# YOU deal with this.
@@ -218,6 +220,7 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 			"category": category,
 			"activity_name": activity_name,
 			"activity_id": activity_id,
+			"fact_ids": fact_id,
 			"tags": tags,
 			"desctimes": desctimes,
 		}
@@ -347,8 +350,7 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 				tags = entry['tags'].split(',')
 				for tag in tags:
 					try:
-						prefix, item_key, item_id = tag.split('__')
-						#prefix, item_key, proj_id = tag.split('__')
+						prefix, item_key, item_id = tag.split('__')[:3]
 					except ValueError as err:
 						# Not an encoded tag; ignore.
 						pass

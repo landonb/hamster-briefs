@@ -1,6 +1,6 @@
 #!/usr/bin/env python3.5
 # (Using py3.5 for subprocess.run().)
-# Last Modified: 2016.11.21 /coding: utf-8
+# Last Modified: 2016.11.28 /coding: utf-8
 # Copyright: © 2016 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -1061,6 +1061,7 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 				, activities.name AS activity_name
 				--, activities.search_name AS activity_name
 				, facts.activity_id
+				, facts.id AS fact_id
 				, tag_names
 				, facts.description
 			--FROM facts
@@ -1341,6 +1342,7 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 				, category_name
 				, activity_name
 				, activity_id
+				, GROUP_CONCAT(fact_id, ",") AS fact_ids
 				, tag_names
 				, GROUP_CONCAT(desc_and_durn, ",") AS eggregate
 			FROM (
@@ -1350,6 +1352,7 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 					, category_name
 					, activity_id
 					, activity_name
+					, fact_id
 					, tag_names
 					--, '"' || description || ' [' || duration || ']"' AS desc_and_durn
 					--, CASE
