@@ -1,6 +1,6 @@
 #!/usr/bin/env python3.5
 # (Using py3.5 for subprocess.run().)
-# Last Modified: 2016.11.28 /coding: utf-8
+# Last Modified: 2016.12.20 /coding: utf-8
 # Copyright: © 2016 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -388,6 +388,10 @@ class HR_Argparser(pyoiler_argparse.ArgumentParser_Wrap):
 					)
 				self.cli_opts.time_beg = start_date.isoformat()
 
+		# Normalize values. So, e.g., "2016_12_12" to "2016-12-12".
+		self.cli_opts.time_beg = HR_Argparser.normalize_datetime(self.cli_opts.time_beg)
+		self.cli_opts.time_end = HR_Argparser.normalize_datetime(self.cli_opts.time_end)
+
 		add_list_types = []
 		if (not self.cli_opts.do_list_types
 			and self.cli_opts.prev_weeks is None
@@ -431,21 +435,29 @@ class HR_Argparser(pyoiler_argparse.ArgumentParser_Wrap):
 	# MEH: This is really more of a utility class method...
 	@staticmethod
 	def str2datetime(time_str):
-		dtobj_1 = None
-		dtobj_2 = None
-		date_parser = re.compile(r'(\d+)[^\d]+(\d+)[^\d]+(\d+)\s+(\d+)[^\d]+(\d+)')
-		rem = date_parser.match(time_str)
-		tup = rem.groups() if rem else None
-		if tup:
-			try:
-				strpfmt = '%Y-%m-%d %H:%M'
-				dtobj_1 = datetime.datetime.strptime('%s-%s-%s %s:%s' % tup, strpfmt)
-				# params: year, month, day, hour=0, minute=0, second=0, microsecond=0, tzinfo=None
-				dtobj_2 = datetime.datetime(*[int(x) for x in tup])
-			except ValueError:
-				pass # The SQL date parser will try harder to decode it.
-			#assert_soft(dtobj_1 == dtobj_2)
-		return dtobj_2
+		if not isinstance(time_str, datetime.date):
+			dtobj_1 = None
+			dtobj_2 = None
+			date_parser = re.compile(r'^(\d+)[^\d]+(\d+)[^\d]+(\d+)\s+(\d+)[^\d]+(\d+)$')
+			rem = date_parser.match(time_str)
+			tup = rem.groups() if rem else None
+			if tup:
+				try:
+					strpfmt = '%Y-%m-%d %H:%M'
+					dtobj_1 = datetime.datetime.strptime('%s-%s-%s %s:%s' % tup, strpfmt)
+					# params: year, month, day, hour=0, minute=0, second=0, microsecond=0, tzinfo=None
+					dtobj_2 = datetime.datetime(*[int(x) for x in tup])
+				except ValueError:
+					pass # The SQL date parser will try harder to decode it.
+				#assert_soft(dtobj_1 == dtobj_2)
+			time_str = dtobj_2
+		return time_str
+
+	@staticmethod
+	def normalize_datetime(time_str):
+		if time_str and not isinstance(time_str, datetime.date):
+			time_str = re.sub(r'^(\d+)[^\d]+(\d+)[^\d]+(\d+)\s*(.*)$', r'\1-\2-\3 \4', time_str)
+		return time_str
 
 	def setup_do_list_types_add(self, list_type):
 		if list_type not in self.setup_seen_types:
