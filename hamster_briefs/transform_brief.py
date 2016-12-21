@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Last Modified: 2016.11.28 /coding: utf-8
+# Last Modified: 2016.12.20 /coding: utf-8
 # Copyright: © 2016 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -151,6 +151,13 @@ class TxTl_Argparser(pyoiler_argparse.ArgumentParser_Wrap):
 			type=str, help="password",
 		)
 
+		self.add_argument('--delimiter', dest='comment_delimiter', type=str,
+			# 2016-12-20: Using newlines makes the Tempo content on an
+			#   individual ticket really long.
+			#default="\n\n",
+			default=" / ",
+		)
+
 	def verify(self):
 		ok = pyoiler_argparse.ArgumentParser_Wrap.verify(self)
 
@@ -205,14 +212,25 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 		desc_time_tuples = desc_time_tuples.strip('"')
 		dnts = desc_time_tuples.split('","')
 		assert((len(dnts) % 2) == 0)
-		desctimes = []
+
+		# 2016-12-20: Combine the same-named facts into a single fact.
+		comments = []
+		desc_times = {}
 		idx = 0
 		while idx < (len(dnts) / 2):
 			ridx = idx * 2
 			fact_comment = dnts[ridx].replace('\\n\\n', '\n')
 			fact_duration = round(float(dnts[ridx + 1]), 3)
-			desctimes.append("%s [%s]" % (fact_comment, fact_duration,))
+			try:
+				desc_times[fact_comment] += fact_duration
+			except KeyError:
+				comments.append(fact_comment)
+				desc_times[fact_comment] = fact_duration
 			idx += 1
+
+		desctimes = []
+		for comment in comments:
+			desctimes.append("%s [%s]" % (comment, desc_times[comment],))
 
 		new_entry = {
 			"year_month_day": year_month_day,
@@ -325,6 +343,9 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 
 		for entry in self.entries:
 
+			if not self.ensure_entry_keys(entry):
+				next
+
 			# The project ID and item key are encoded in the Activity name.
 			mat = proj_id_parser.match(entry['activity_name'])
 
@@ -358,7 +379,7 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 			curr_entry = {
 				"dateStarted": "%sT00:00:00.000+0000" % (entry['year_month_day'],),
 				"timeSpentSeconds": "%d" % (int(60 * 60 * entry['time_spent']),),
-				"comment": "\n\n".join(entry['desctimes']),
+				"comment": self.cli_opts.comment_delimiter.join(entry['desctimes']),
 				"issue": {
 					"projectId": proj_id,
 					"key": item_key,
@@ -421,6 +442,30 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 			#  https://i.exosite.com/jira/secure/TempoUserBoard!timesheet.jspa?period=07112016
 			print("  %s/secure/TempoUserBoard!timesheet.jspa" % (self.cli_opts.tempo_url,))
 			print()
+
+	# end: update_entries
+
+	def ensure_entry_keys(self, entry):
+		okay = True
+		required_keys = [
+			'activity_name',
+			'year_month_day',
+			'time_spent',
+			'desctimes',
+		]
+		missing_keys = []
+		for key in required_keys:
+			try:
+				entry[key]
+			except KeyError:
+				missing_keys.append(key)
+		if missing_keys:
+			okay = False
+			print('ERROR: Entry missing mandatory key(s): %s' % (missing_keys,))
+			self.failed_reqs.append(entry)
+		# Optional keys.
+		entry.setdefault('tags', '')
+		return okay
 
 def main():
 	hr = Transformer()
