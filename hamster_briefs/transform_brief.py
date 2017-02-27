@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Last Modified: 2016.12.20 /coding: utf-8
-# Copyright: © 2016 Landon Bouma.
+# Last Modified: 2017.02.27 /coding: utf-8
+# Copyright: © 2016-2017 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
 
@@ -220,7 +220,7 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 		while idx < (len(dnts) / 2):
 			ridx = idx * 2
 			fact_comment = dnts[ridx].replace('\\n\\n', '\n')
-			fact_duration = round(float(dnts[ridx + 1]), 3)
+			fact_duration = float(dnts[ridx + 1])
 			try:
 				desc_times[fact_comment] += fact_duration
 			except KeyError:
@@ -230,7 +230,8 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 
 		desctimes = []
 		for comment in comments:
-			desctimes.append("%s [%s]" % (comment, desc_times[comment],))
+			total_duration = round(desc_times[fact_comment], 3)
+			desctimes.append("%s [%s]" % (comment, total_duration,))
 
 		new_entry = {
 			"year_month_day": year_month_day,
