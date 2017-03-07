@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Last Modified: 2017.02.27 /coding: utf-8
+# Last Modified: 2017.03.06 /coding: utf-8
 # Copyright: © 2016-2017 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -230,7 +230,7 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 
 		desctimes = []
 		for comment in comments:
-			total_duration = round(desc_times[fact_comment], 3)
+			total_duration = round(desc_times[comment], 3)
 			desctimes.append("%s [%s]" % (comment, total_duration,))
 
 		new_entry = {
