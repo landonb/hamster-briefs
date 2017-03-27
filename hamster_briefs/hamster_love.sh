@@ -1,6 +1,7 @@
 #!/bin/bash
-# Last Modified: 2016.11.21
-# Copyright: © 2016 Landon Bouma.
+# Last Modified: 2017.03.27
+# Copyright: © 2016-2017 Landon Bouma.
+# vim:tw=0:ts=2:sw=2:et
 
 source_db=$1
 target_db=$2
@@ -9,7 +10,7 @@ target_db=$2
 EPREFIX=" "
 
 echo_usage () {
-  echo "USAGE: $0 path/to/most-recent-hamster.db path/to/an-older-hamster.db"
+  echo "USAGE: $(basename $0) path/to/most-recent-hamster.db path/to/an-older-hamster.db"
 }
 
 # Script inputs.
