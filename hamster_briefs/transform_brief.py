@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-# Last Modified: 2017.03.06 /coding: utf-8
+# Last Modified: 2017.04.02 /coding: utf-8
 # Copyright: © 2016-2017 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
-
 
 # FIXME/2016-11-18: Rename this file to reflect that it's really tempo-specific?
 #
@@ -11,8 +10,6 @@
 #
 # FIXME/2016-10-10: hamster-briefs.py: Fix multi-word -a option.
 #                   Doesn't work: time-exo.sh -2 -r all -a "Genie - Billable"
-
-
 
 # Prerequisites
 # -------------
