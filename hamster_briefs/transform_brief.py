@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Last Modified: 2017.04.02 /coding: utf-8
+# Last Modified: 2017.04.10 /coding: utf-8
 # Copyright: © 2016-2017 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -216,6 +216,11 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 		idx = 0
 		while idx < (len(dnts) / 2):
 			ridx = idx * 2
+			# FIXME/2017-04-10: Double-quotes in comments are not always delimited.
+			#   E.g., if a comment is this: "I quoted something," says I.
+			#   Then in the dump file you'll see: ""I quoted something," says I."
+			#   And in the JSON file you'll see: I quoted something,\" says I.
+			#   Note the missing leading double quote.
 			fact_comment = dnts[ridx].replace('\\n\\n', '\n')
 			fact_duration = float(dnts[ridx + 1])
 			try:
