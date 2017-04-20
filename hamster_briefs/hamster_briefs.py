@@ -1,7 +1,7 @@
 #!/usr/bin/env python3.5
 # (Using py3.5 for subprocess.run().)
-# Last Modified: 2016.12.20 /coding: utf-8
-# Copyright: © 2016 Landon Bouma.
+# Last Modified: 2017.04.20 /coding: utf-8
+# Copyright: © 2016-2017 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
 # FIXME: Distinguish btw. SQLite3 versions to decide whether
@@ -559,6 +559,9 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 
 	def go_main(self):
 		log.debug('go_main: cli_opts: %s' % (self.cli_opts,))
+		# If you want more details:
+		#opts_list = ["%s: %s" % (x,y) for (x,y) in vars(self.cli_opts).items()]
+		#log.debug('go_main: %s' % ("\n".join(opts_list)))
 
 		try:
 			self.conn = sqlite3.connect(self.cli_opts.hamster_db_path)
