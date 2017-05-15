@@ -1,6 +1,6 @@
 #!/usr/bin/env python3.5
 # (Using py3.5 for subprocess.run().)
-# Last Modified: 2017.04.20 /coding: utf-8
+# Last Modified: 2017.05.15 /coding: utf-8
 # Copyright: © 2016-2017 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -155,23 +155,44 @@ class HR_Argparser(pyoiler_argparse.ArgumentParser_Wrap):
 			help="Match activities AND tags names, else just OR",
 		)
 
-		self.add_argument('-0', '--today', dest='prev_weeks',
+		self.add_argument('-0', '--today', dest='prev_week',
 			action='store_const', const=0,
 		)
-		self.add_argument('-1', '--this-week', dest='prev_weeks',
+		self.add_argument('-1', '--this-week', dest='prev_week',
 			action='store_const', const=1,
 		)
-		self.add_argument('-2', '--last-week', dest='prev_weeks',
+		# 2017-05-15: The '-2' option used to show last two weeks
+		#   (combined) but the use case I find more often is showing
+		#   just the week this is two weeks ago.
+		self.add_argument('-2', '--last-week', dest='prev_week',
 			action='store_const', const=2,
 		)
-		self.add_argument('-3', '--last-two-weeks', dest='prev_weeks',
+		self.add_argument('-3', '--two-weeks-ago', dest='prev_week',
 			action='store_const', const=3,
 		)
-		self.add_argument('-4', '--this-month', dest='prev_weeks',
+		self.add_argument('-4', '--three-weeks-ago', dest='prev_week',
 			action='store_const', const=4,
 		)
-		self.add_argument('-5', '--last-two-months', dest='prev_weeks',
-			action='store_const', const=5,
+		# 2017-05-15: Was '-4' and prev_weeks=4, now '-m' and prev_month=1.
+		self.add_argument('-m', '--this-month', dest='prev_month',
+			action='store_const', const=1,
+		)
+		# 2017-05-15: Was '-5' and prev_weeks=5 and would show this month
+		#   and last; now '-M' and prev_month=2 and shows last month only.
+		self.add_argument('-M', '--last-month', dest='prev_month',
+			action='store_const', const=2,
+		)
+		# Arbitrary weeks-ago or months-ago...
+		# FIXME: What about years ago?
+		self.add_argument('--weeks-ago', dest='prev_week',
+			type=int, metavar='WEEKS_AGO',
+			#default=0,
+			help="Show results for the week the happened this many ago",
+		)
+		self.add_argument('--months-ago', dest='prev_month',
+			type=int, metavar='MONTHS_AGO',
+			#default=0,
+			help="Show results for the month the happened this many ago",
 		)
 
 		self.add_argument('-l', '--quick-list', dest='quick_list',
@@ -329,64 +350,86 @@ class HR_Argparser(pyoiler_argparse.ArgumentParser_Wrap):
 			if not self.cli_opts.do_list_types:
 				self.cli_opts.do_list_types = ['report-activity',]
 				self.cli_opts.output_split_days = True
-			if self.cli_opts.prev_weeks is None:
-				# If first day of new sprint, but this week and last (e.g.,
-				# it's timesheet day!). If into the sprint, print just
-				# current week.
+			if ((self.cli_opts.prev_week is None)
+				and (self.cli_opts.prev_month is None)
+			):
+				# Check if it's the first day of a new sprint (e.g.,
+				# it's timesheet day!).
 				if days_ago <= 1:
-					self.cli_opts.prev_weeks = 2
+					# Print out all of last week's time.
+					self.cli_opts.prev_week = 2
 				else:
-					self.cli_opts.prev_weeks = 1
+					# Print out time from start of week to today.
+					self.cli_opts.prev_week = 1
 
 		if self.cli_opts.do_aggregate:
 			self.cli_opts.do_list_types += ['egg',]
 
-		if self.cli_opts.prev_weeks is not None:
+		if ((self.cli_opts.prev_week is not None) or
+			(self.cli_opts.prev_month is not None)
+		):
 			if self.cli_opts.time_end is not None:
-				log.fatal('Overriding time_end with today because prev_weeks.')
+				# FIXME/2017-05-15: Is this really fatal?
+				log.fatal('Overriding time_end with today because prev_week.')
 			# FIXME: This makes -0 return zero results, i.e., nothing hits for
 			#        today. Which probably means < time_end and not <=, is that okay?
 			#self.cli_opts.time_end = today.isoformat()
 			self.cli_opts.time_end = today + datetime.timedelta(1)
 			if self.cli_opts.time_beg is not None:
-				log.fatal('Overriding time_beg with calculated because prev_weeks.')
+				# FIXME/2017-05-15: Is this really fatal?
+				log.fatal('Overriding time_beg with calculated because prev_week.')
+			if self.cli_opts.prev_week and self.cli_opts.prev_month:
+				log.fatal('Cannot do prev_week and prev_month simultaneously.')
 
-			if self.cli_opts.prev_weeks == 0:
-				#start_date = today - datetime.timedelta(1)
-				##start_date = today
-				self.cli_opts.time_beg = today.isoformat()
-				##self.cli_opts.time_beg = start_date.isoformat()
-				if not self.cli_opts.do_list_types:
-					self.cli_opts.do_list_types = ['daily',]
-			else:
-				#self.cli_opts.time_end = today.isoformat()
+		if self.cli_opts.prev_week == 0:
+			self.cli_opts.time_beg = today.isoformat()
+			if not self.cli_opts.do_list_types:
+				self.cli_opts.do_list_types = ['daily',]
+			# Leave time_end as now/today.
+		else:
+			date_beg = None
+			date_end = None
+			if self.cli_opts.prev_week:
 				if days_ago < 0:
 					days_ago += 7
-				if self.cli_opts.prev_weeks == 1:
+				if self.cli_opts.prev_week == 1:
 					# Calculate back to week start.
-					start_date = today - datetime.timedelta(days_ago)
-				elif self.cli_opts.prev_weeks == 2:
-					# Last week.
-					start_date = today - datetime.timedelta(7 + days_ago)
-					self.cli_opts.time_end = today - datetime.timedelta(days_ago)
-				elif self.cli_opts.prev_weeks == 3:
-					# Calculate to two weeks backs ago.
-					start_date = today - datetime.timedelta(7 + days_ago)
-				elif self.cli_opts.prev_weeks == 4:
-					start_date = today.replace(day=1)
-				elif self.cli_opts.prev_weeks == 5:
-					year = today.year
-					month = today.month - 1
-					if not month:
-						year -= 1
-						month = 12
-					start_date = datetime.date(year, month, 1)
+					date_beg = today - datetime.timedelta(days_ago)
+					# Leave time_end as now/today.
+				elif self.cli_opts.prev_week > 1:
+					# A previous, complete week.
+					days_delta_b = 7 * (self.cli_opts.prev_week - 1)
+					days_delta_e = 7 * (self.cli_opts.prev_week - 2)
+					date_beg = today - datetime.timedelta(days_ago + days_delta_b)
+					date_end = today - datetime.timedelta(days_ago + days_delta_e)
 				else:
-					log.fatal(
-						'Precanned time span value should be one of: 0, 1, 2, 4, 5; not %s'
-						% (self.cli_opts.prev_weeks,)
-					)
-				self.cli_opts.time_beg = start_date.isoformat()
+					log.fatal("Unexpected: prev_week < 1")
+			# Note than unlike prev_week==0, there is no prev_month equivalent.
+			elif self.cli_opts.prev_month:
+				if self.cli_opts.prev_month == 1:
+					# Show from start of this month to today/now.
+					date_beg = today.replace(day=1)
+				elif self.cli_opts.prev_month > 1:
+					year = today.year
+					month = today.month
+					num_months = self.cli_opts.prev_month - 1
+					while num_months > 0:
+						month -= 1
+						if not month:
+							year -= 1
+							month = 12
+						num_months -= 1
+					date_beg = datetime.date(year, month, 1)
+					if month != 12:
+						date_end = datetime.date(year, month+1, 1)
+					else:
+						date_end = datetime.date(year+1, 1, 1)
+				else:
+					log.fatal("Unexpected: prev_month < 1")
+			if date_beg:
+				self.cli_opts.time_beg = date_beg.isoformat()
+			if date_end:
+				self.cli_opts.time_end = date_end.isoformat()
 
 		# Normalize values. So, e.g., "2016_12_12" to "2016-12-12".
 		self.cli_opts.time_beg = HR_Argparser.normalize_datetime(self.cli_opts.time_beg)
@@ -394,7 +437,8 @@ class HR_Argparser(pyoiler_argparse.ArgumentParser_Wrap):
 
 		add_list_types = []
 		if (not self.cli_opts.do_list_types
-			and self.cli_opts.prev_weeks is None
+			and self.cli_opts.prev_week is None
+			and self.cli_opts.prev_month is None
 			and self.cli_opts.time_beg
 			and self.cli_opts.time_end
 		):
@@ -410,12 +454,16 @@ class HR_Argparser(pyoiler_argparse.ArgumentParser_Wrap):
 					add_list_types += ['gross',]
 		if not self.cli_opts.do_list_types:
 			if self.cli_opts.week_starts:
-				if self.cli_opts.prev_weeks in [1,2,3,]:
+				if ((self.cli_opts.prev_week and (self.cli_opts.prev_week > 0))
+					or (self.cli_opts.prev_month and (self.cli_opts.prev_month > 0))
+				):
 					self.cli_opts.do_list_types = ['sprint-report',]
 				else:
 					self.cli_opts.do_list_types = ['sprint-summary',]
 			else:
-				if self.cli_opts.prev_weeks in [1,2,3,]:
+				if ((self.cli_opts.prev_week and (self.cli_opts.prev_week > 0))
+					or (self.cli_opts.prev_month and (self.cli_opts.prev_month > 0))
+				):
 					self.cli_opts.do_list_types = ['weekly-report',]
 				else:
 					# THIS_IS_THE_DEFAULT_BEHAVIOUR: This happens if user uses no CLI opts.
