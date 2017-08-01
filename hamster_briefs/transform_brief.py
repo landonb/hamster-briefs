@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Last Modified: 2017.04.10 /coding: utf-8
+# Last Modified: 2017.08.01 /coding: utf-8
 # Copyright: © 2016-2017 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -113,7 +113,9 @@ import hamster_briefs.version_hamster
 # 2016-11-17: This script is a little green, and there's nothing
 # coded to quickly remove rogue entries, so ask user if the input
 # exceeds this many entries.
-NUM_ENTRIES_LIMIT_ASK = 20
+#NUM_ENTRIES_LIMIT_ASK = 20
+# 2017-08-01: This should be relaxed... I often have way more...
+NUM_ENTRIES_LIMIT_ASK = 50
 
 class TxTl_Argparser(pyoiler_argparse.ArgumentParser_Wrap):
 
@@ -186,6 +188,7 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 		#print(json_encode(self.entries))
 		print(json.dumps(self.entries, sort_keys=True, indent=4))
 
+	# Read a line of SQL output (whose cells are pipe|separated).
 	def read_brief_line(self, line):
 		try:
 			num_fields = 8
@@ -235,6 +238,7 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 			total_duration = round(desc_times[comment], 3)
 			desctimes.append("%s [%s]" % (comment, total_duration,))
 
+		# NOTE: These get alphabetized when writ to file.
 		new_entry = {
 			"year_month_day": year_month_day,
 			"time_spent": round(float(time_spent), 3),
@@ -248,12 +252,11 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 		self.entries.append(new_entry)
 
 	def upload_to_tempo(self):
-
 		self.entries = []
 		with open(self.cli_opts.briefs_file, 'r') as briefs_f:
 			self.entries = json_decode(briefs_f.read())
 
-		# Ask for permission there are lots of entries.
+		# Ask for permission when there are lots of entries.
 		self.check_if_oh_so_many()
 
 		# Do 2 passes, so in case we cannot parse something or otherwise
@@ -345,16 +348,22 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 		total_secs = 0
 
 		for entry in self.entries:
-
 			if not self.ensure_entry_keys(entry):
 				next
 
 			# The project ID and item key are encoded in the Activity name.
 			mat = proj_id_parser.match(entry['activity_name'])
 
+# FIXME: 
+#			# 2017-08-01: New feature: Get Project ID and Issue ID from JIRA.
+#			make lookup of Project name to Project ID, and Issue name to Issue ID.
+
 			tup = mat.groups() if mat else None
 			if not tup:
-				self.parse_errs.append("ERROR: Activity name missing JIRA IDs: %s" % (entry['activity_name'],))
+				self.parse_errs.append(
+					"ERROR: Activity name missing JIRA IDs: %s"
+					% (entry['activity_name'],)
+				)
 				continue
 			try:
 				proj_id, item_id, item_key = tup
