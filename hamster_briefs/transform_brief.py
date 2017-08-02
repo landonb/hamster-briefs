@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Last Modified: 2017.08.01 /coding: utf-8
+# Last Modified: 2017.08.02 /coding: utf-8
 # Copyright: © 2016-2017 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -82,7 +82,9 @@ import os
 import sys
 
 import datetime
+from http import HTTPStatus
 import re
+import xml.etree.ElementTree as ET
 
 import json
 try:
@@ -199,14 +201,14 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 		try:
 			num_fields = 8
 			(
-			year_month_day,
-			time_spent,
-			category,
-			activity_name,
-			activity_id,
-			fact_id,
-			tags,
-			desc_time_tuples,
+				year_month_day,
+				time_spent,
+				category,
+				activity_name,
+				activity_id,
+				fact_id,
+				tags,
+				desc_time_tuples,
 			) = line.split("|", num_fields-1)
 		except Exception as err:
 			log.fatal('read_briefs: invalid line: %s' % (line,))
@@ -246,13 +248,13 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 
 		# NOTE: These get alphabetized when writ to file.
 		new_entry = {
-			"year_month_day": year_month_day,
-			"time_spent": round(float(time_spent), 3),
-			"category": category,
-			"activity_name": activity_name,
 			"activity_id": activity_id,
+			"activity_name": activity_name,
+			"category": category,
 			"fact_ids": fact_id,
 			"tags": tags,
+			"time_spent": round(float(time_spent), 3),
+			"year_month_day": year_month_day,
 			"desctimes": desctimes,
 		}
 		self.entries.append(new_entry)
@@ -274,69 +276,34 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 
 		# Do 2 passes, so in case we cannot parse something or otherwise
 		# fail, we won't have sent any POST requests to JIRA.
-		forreal = False
+		self.issue_meta = {}
 		self.parse_errs = []
 		self.failed_reqs = []
-		self.update_entries(forreal)
+		self.update_entries(forreal=False)
 		if not self.cli_opts.testmode:
-			self.upload_forreal()
-		self.check_failed_reqs()
-
-	def upload_to_tempo(self):
-		if not self.parse_errs:
-			forreal = True
-			self.update_entries(forreal)
+			self.upload_forreal_or_die()
 		else:
-			print(
-				"ERROR: Found %d error(s) you need to fix before you can upload."
-				% (len(self.parse_errs),)
+			self.write_fail_file(forreal=False)
+
+	def add_parse_err(self, entry, msg):
+		if not self.parse_errs:
+			self.print_splitter()
+		print(
+			#'ERROR: In: "%s" (%s) / %s'
+			'ERROR: In: "%s" (%s)\n  %s'
+			#?% (entry['activity_name'], entry['fact_ids'], msg,)
+			% (
+				entry.get('activity_name', '[Activity Name missing]'),
+				entry.get('fact_ids', '[Fact IDs missing]'),
+				msg,
 			)
-			for err in self.parse_errs:
-				print(err)
-			sys.exit(1)
-
-	def check_failed_reqs(self):
-		if self.failed_reqs:
-			if not self.cli_opts.testmode:
-				self.write_fail_file_and_exit()
-			else:
-				self.alert_errors_on_test()
-
-	def write_fail_file_and_exit(self):
-		now = datetime.datetime.now()
-
-		basename = self.cli_opts.briefs_file
-		# FIXME/MAYBE: Anyone care about using a magic date format remover?
-		basename = re.sub('[-_\.]?\d{4}[-_\.]?\d{2}[-_\.]?\d{2}[-_\.]?\d{6}\.json$', '', basename)
-		# FIXME/MAYBE: Anyone care about using a MAGIC NAME?
-		basename = re.sub('\.json$', '', basename)
-
-		fail_file = "%s-%s-%02d%02d%02d.json" % (
-			basename,
-			datetime.date.today().isoformat(),
-			now.hour,
-			now.minute,
-			now.second,
 		)
-		with open(fail_file, 'x') as fail_f:
-			#for entry in self.failed_reqs:
-			#	fail_f.write(json_encode(entry))
-			fail_f.write(json.dumps(self.failed_reqs, sort_keys=True, indent=4))
-		print(
-			"ERROR: Encountered %d error(s) during upload."
-			% (len(self.failed_reqs),)
-		)
-		print("Not all entries were submitted successfully.")
-		print("Please fix the problems and try again on the new file:")
-		print("  %s" % (fail_file,))
-		sys.exit(2)
+		self.parse_errs.append(entry)
 
-	def alert_errors_on_test(self):
-		print(
-			"ERROR: Encountered %d error(s) during preparation."
-			% (len(self.failed_reqs),)
-		)
-		#?sys.exit(2)
+	def upload_forreal_or_die(self):
+		self.update_entries(forreal=True)
+		self.die_on_failed_reqs()
+		self.print_final_success()
 
 	def check_if_oh_so_many(self):
 		if len(self.entries) > NUM_ENTRIES_LIMIT_ASK:
@@ -361,148 +328,47 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 					print("Alright, you're the boss!")
 					sys.exit(1)
 
-	def output_header(self, forreal):
-		print('#########################################################################')
-		if not forreal:
-			print('PASS 1/2 Checking JSON')
-		else:
-			print('PASS 2/2 Tickling TEMPO')
-		print('#########################################################################')
-
 	# *** Tempo-specific fcns.
 
 	def update_entries(self, forreal):
-		self.output_header(forreal)
+		self.print_header(forreal)
 
 		#print(self.entries)
 		#print(json.dumps(self.entries, sort_keys=True, indent=4))
 
-		proj_id_parser = re.compile(r'.* \[(\d+):(\d+):([-a-zA-Z0-9]+)\]\w*')
-
-		total_secs = 0
-
+		first_time = True
+		total_time_spent = 0
 		for entry in self.entries:
 			if not self.ensure_entry_keys(entry):
-				next
-			entry_secs = self.update_entry(entry, proj_id_parser, forreal)
-			total_secs += entry_secs
+				continue
+			project_id, issue_key = self.locate_entry_keys(entry)
+			if project_id and issue_key:
+				self.prepare_tempo_payload(entry)
+				if not forreal:
+					if first_time:
+						self.print_splitter()
+						first_time = False
+					self.print_entry_payload_brief(entry)
+					total_time_spent += int(entry['payload']['timeSpentSeconds'])
+		if total_time_spent:
+			# Implied: not forreal
+			self.print_total_time(total_time_spent)
+		self.die_on_parse_errs()
 
-		self.output_entry_results(total_secs, forreal)
+		for entry in self.entries:
+			self.print_post_req(entry)
+			if forreal:
+				self.post_tempo_payload(entry)
 
-	def update_entry(self, entry, proj_id_parser, forreal):
-		proj_id, item_key = self.locate_entry_keys(entry, proj_id_parser)
-		curr_entry = self.prepare_curr_entry(entry, proj_id, item_key)
-		entry_secs = self.post_curr_entry(curr_entry, entry, forreal)
-		return entry_secs
-
-	def post_curr_entry(self, curr_entry, entry, forreal):
-		headers = {'content-type': 'application/json'}
-		if not forreal:
-			json_encode(curr_entry)
-			#print(curr_entry)
-			print("Entry: date: %s / time: %s" % (
-				curr_entry['dateStarted'],
-				curr_entry['timeSpentSeconds'],
-			))
-			entry_secs = int(curr_entry['timeSpentSeconds'])
-		else:
-			entry_secs = 0
-			print('POST: Key: %s / Date: %s / Time: %s' % (
-				curr_entry['issue']['key'],
-				curr_entry['dateStarted'],
-				curr_entry['timeSpentSeconds'],
-			))
-			print(curr_entry)
-			req = requests.post(
-				self.cli_opts.tempo_url + '/rest/tempo-timesheets/3/worklogs',
-				auth=(self.cli_opts.username, self.cli_opts.password),
-				data=json_encode(curr_entry),
-				headers=headers,
-			)
-			# req.text/req.content is the server response, which
-			# on 200 OK is the full JSON on the new worklog entry.
-			# Note that req.ok when (req.status_code == 200).
-			if not req.ok:
-				#import pdb;pdb.set_trace()
-				self.failed_reqs.append(entry)
-				print(
-					'ERROR: Tempo error: status_code: %s / text: %s'
-					% (req.status_code, req.text,)
-				)
-		return entry_secs
-
-	def locate_entry_keys(self, entry, proj_id_parser):
-		# The project ID and item key are encoded in the Activity name.
-		mat = proj_id_parser.match(entry['activity_name'])
-
-# FIXME: 
-#			# 2017-08-01: New feature: Get Project ID and Issue ID from JIRA.
-#			make lookup of Project name to Project ID, and Issue name to Issue ID.
-
-		tup = mat.groups() if mat else None
-		if not tup:
-			self.parse_errs.append(
-				"ERROR: Activity name missing JIRA IDs: %s"
-				% (entry['activity_name'],)
-			)
-			continue
-		try:
-			proj_id, item_id, item_key = tup
-		except ValueError as err:
-			self.parse_errs.append(
-				"ERROR: Failed to parse JIRA IDs [proj:item:key] in activity name: %s"
-				% (entry['activity_name'],)
-			)
-			continue
-
-		# For client-level Activities (sans ticket numbers),
-		# a tag should contain the item_key. Format is:
-		#   exo__CLIENT-TICKETNUMBER__JIRAKEYID
-		if entry['tags']:
-			# The user can use more than one tag, which hamster, er,
-			# sqlite3 (hamster-briefs) combines with commas.
-			tags = entry['tags'].split(',')
-			for tag in tags:
-				try:
-					prefix, item_key, item_id = tag.split('__')[:3]
-				except ValueError as err:
-					# Not an encoded tag; ignore.
-					pass
-
-	def prepare_curr_entry(self, entry, proj_id, item_key):
-		curr_entry = {
-			"dateStarted": "%sT00:00:00.000+0000" % (entry['year_month_day'],),
-			"timeSpentSeconds": "%d" % (int(60 * 60 * entry['time_spent']),),
-			"comment": self.cli_opts.comment_delimiter.join(entry['desctimes']),
-			"issue": {
-				"projectId": proj_id,
-				"key": item_key,
-				# Not needed:
-				#item_id
-			},
-			"author": {
-				"name": self.cli_opts.username,
-			},
-		}
-		return curr_entry
-
-	def output_entry_results(self, total_secs, forreal):
-		if not forreal:
-			print('-------------------------------------------------------------------------')
-			print(
-				"update_entries: total_secs: %s / total_hrs: %.2f"
-				% (total_secs, total_secs / 60.0 / 60.0,)
-			)
-		else:
-			print('-------------------------------------------------------------------------')
-			print('Success!')
-			print()
-			# FIXME: Can/Should we automate submit-for-approval?
-			print("REMEMBER: Logon and submit your timesheet.")
-			# FIXME: Encode 'period' so the correct week is displayed.
-			#  https://i.exosite.com/jira/secure/TempoUserBoard!timesheet.jspa?period=07112016
-			print("  %s/secure/TempoUserBoard!timesheet.jspa" % (self.cli_opts.tempo_url,))
-			print()
+	ILLEGAL_KEYS = [
+		# Gleaned and/or Verified with Tempo:
+		'project_key',
+		'project_id',
+		'issue_key',
+		'issue_id',
+		# The Tempo POST payload.
+		'payload',
+	]
 
 	def ensure_entry_keys(self, entry):
 		okay = True
@@ -520,11 +386,397 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 				missing_keys.append(key)
 		if missing_keys:
 			okay = False
-			print('ERROR: Entry missing mandatory key(s): %s' % (missing_keys,))
-			self.failed_reqs.append(entry)
+			self.add_parse_err(
+				entry, 'Entry missing mandatory key(s): %s' % (missing_keys,)
+			)
 		# Optional keys.
 		entry.setdefault('tags', '')
+		# Illegal keys (used to store internal data).
+		invalid_keys = []
+		for key in Transformer.ILLEGAL_KEYS:
+			try:
+				entry[key]
+				invalid_keys.append(key)
+			except KeyError:
+				entry[key] = None
+		if invalid_keys:
+			okay = False
+			self.add_parse_err(
+				entry, 'Entry contains illegal key(s): %s' % (invalid_keys,)
+			)
 		return okay
+
+	def locate_entry_keys(self, entry):
+		invalid = self.query_ids_from_tempo_service(entry)
+		if not invalid:
+			if not entry['project_id'] and not entry['issue_key'] and not entry['issue_id']:
+				# Deprecate: The Tedious method: Encode Project ID in the activity,
+				# and encode the Issue ID in either the activity name of the tags.
+				#self.print_splitter()
+				#print(
+				#	"WARNING: Using deprecated method to find Project ID and Issue key: %s (%s)"
+				#	% (entry['activity_name'], entry['fact_ids'],)
+				#)
+				##self.print_splitter()
+				if hasattr(entry, 'activity_name'):
+					self.locate_static_ids_from_activity_name(entry)
+			if not entry['project_id'] and not entry['issue_key'] and not entry['issue_id']:
+				msg = (
+					'JIRA identifiers not found in tags or activity name: tags: "%s"'
+					% (entry['tags'],)
+				)
+				self.add_parse_err(entry, msg)
+		return entry['project_id'], entry['issue_key']
+
+	# >>> re.compile(r'.*(?:-|\s|^)([A-Z0-9]+)-(\d+)(?!-|\w)').match('zoom-zoom ddd-ABC-123,XYZ-233').groups()
+	# ('ABC', '123')
+	# 
+	# >>> re.compile(r'(?:-|\s|^)([A-Z0-9]+)-(\d+)(?!-|\w)').findall('zoom-zoom ddd-ABC-123, XYZ-233')
+	# [('ABC', '123'), ('XYZ', '233')]
+	#
+	# >>> re.compile(r'(?:-|\s|^)([A-Z0-9]+)-(\d+)(?!\d)').findall(
+	#       'zoom-zoom ddd-ABC-123-JJJ-123-something XYZ-233')
+	# [('ABC', '123'), ('JJJ', '123'), ('XYZ', '233')]
+	# E.g., USER-PREFIX_Don't-Care-ALLCAPSPROJECTKEY123-456
+	PROJ_KEY_PARSER = re.compile(r'(?:-|\s|^)([A-Z0-9]+)-(\d+)(?!\d)')
+
+	def query_ids_from_tempo_service(self, entry):
+		try:
+			name_matches = Transformer.PROJ_KEY_PARSER.findall(entry['activity_name'])
+		except KeyError:
+			name_matches = []
+		tags_matches = []
+		for tag in self.entry_tags(entry):
+			matches = Transformer.PROJ_KEY_PARSER.findall(tag)
+			tags_matches.extend(matches)
+		project_key, item_number, invalid = self.find_keys_match(entry, name_matches, tags_matches)
+		if project_key and item_number:
+			self.set_entry_issue_meta(entry, project_key, item_number)
+		return invalid
+
+	def set_entry_issue_meta(self, entry, project_key, item_number):
+		try:
+			entry['project_id'], entry['issue_key'], entry['issue_id'] = (
+				self.issue_meta[project_key][item_number]
+			)
+		except KeyError:
+			self.get_issue_meta(entry, project_key, item_number)
+
+	PROJ_ID_PARSER = re.compile(r'^\d{5}$')
+
+	def get_issue_meta(self, entry, project_key, item_number):
+		issue_key = '%s-%s' % (project_key, item_number,)
+		endpoint = (
+			'/si/jira.issueviews:issue-xml/%s/%s.xml'
+			% (issue_key, issue_key,)
+		)
+		req = requests.get(
+			self.cli_opts.tempo_url + endpoint,
+			auth=(self.cli_opts.username, self.cli_opts.password),
+		)
+		if req.ok:
+			try:
+				tree = ET.fromstring(req.text)
+			except Exception as err:
+				self.add_parse_err(entry, 'Tempo Parse XML: %s' % (err,))
+			else:
+				self.parse_issue_meta(entry, tree, issue_key, project_key, item_number)
+		elif req.status_code != HTTPStatus.NOT_FOUND:
+			self.add_parse_err(
+				entry,
+				'Tempo GET XML: status_code: %s / endpoint: %s / text: %s' % (
+					req.status_code, endpoint, req.text,
+				)
+			)
+		else:
+			self.add_parse_err(entry, 'Tempo Item Not Found: endpoint: %s' % (endpoint,))
+
+	def parse_issue_meta(self, entry, tree, issue_key, project_key, item_number):
+		try:
+			item_elem = tree.find('channel').find('item')
+			#
+			proj_elem = item_elem.find('project')
+			doc_project_key = proj_elem.get('key')
+			doc_project_id = proj_elem.get('id')
+			#
+			key_elem = item_elem.find('key')
+			doc_issue_key = key_elem.text
+			doc_issue_id = key_elem.get('id')
+		except KeyError as err:
+			self.add_parse_err(
+				entry,
+				'Unexpected: could not locate XML keys: err: "%s"' % (err,)
+			)
+		else:
+			if project_key != doc_project_key:
+				self.add_parse_err(
+					entry,
+					'Unexpected: project_key mismatch: "%s": "%s" != "%s"' % (
+						issue_key, project_key, doc_project_key,
+					)
+				)
+			else:
+				mat = Transformer.PROJ_ID_PARSER.match(doc_project_id)
+				if not mat:
+					self.add_parse_err(
+						entry,
+						'Unexpected: project_id mismatch: "%s" !~ "%s"' % (
+							doc_project_id, Transformer.PROJ_ID_PARSER.pattern,
+						)
+					)
+				else:
+					(
+						entry['project_key'],
+						entry['project_id'],
+						entry['issue_key'],
+						entry['issue_id'],
+					) = (
+						doc_project_key,
+						doc_project_id,
+						doc_issue_key,
+						doc_issue_id,
+					)
+					self.issue_meta.setdefault(project_key, {})
+					self.issue_meta[project_key][item_number] = (
+						doc_project_id, doc_issue_key, doc_issue_id,
+					)
+
+	def find_keys_match(self, entry, name_matches, tags_matches):
+		project_key, item_number = None, None
+		okay = self.validate_id_matches(entry, name_matches, tags_matches)
+		if okay:
+			if name_matches:
+				project_key, item_number = name_matches[0]
+			elif tags_matches:
+				project_key, item_number = tags_matches[0]
+			# else, nothing found; use deprecated method.
+			# FIXME/2017-08-02: Remove deprecated code...
+		return project_key, item_number, not okay
+
+	def validate_id_matches(self, entry, name_matches, tags_matches):
+		okay = True
+		# 2017-08-01: For now, not allowed to specify more than one issue key.
+		# Really just curious if I'll ever run into this and want to change it,
+		# say, make the tags issue key override the activity name key, or vice
+		# versa.
+		if name_matches and tags_matches:
+			okay = False
+			self.add_parse_err(
+				entry,
+				'Issue Keys are in both activity name and keys: acty: %s / tags: %s' % (
+					name_matches, tags_matches,
+				)
+			)
+		elif len(name_matches) > 1:
+			okay = False
+			self.add_parse_err(
+				entry,
+				'Too many Issue Keys found in activity name: acty: %s' % (
+					name_matches,
+				)
+			)
+		elif len(tags_matches) > 1:
+			okay = False
+			self.add_parse_err(
+				entry,
+				'Too many Issue Keys found in tags: %s' % (
+					tags_matches,
+				)
+			)
+		# else, either only 1 match, or none.
+		return okay
+
+	# E.g., 12912:37462:project-Name
+	DEPRECATED_PROJ_IDS_PARSER = re.compile(r'.* \[(\d+):(\d+):([-a-zA-Z0-9]+)\]\w*')
+
+	def entry_tags(self, entry):
+		# For client-level Activities (sans ticket numbers),
+		# a tag should contain the issue_key. Format is:
+		#   exo__CLIENT-TICKETNUMBER__JIRAKEYID
+		try:
+			if entry['tags']:
+				# The user can use more than one tag, which hamster, er,
+				# sqlite3 (hamster-briefs) combines with commas.
+				tags = entry['tags'].split(',')
+			else:
+				tags = []
+		except KeyError:
+			tags = []
+		return tags
+
+	def locate_static_ids_from_activity_name(self, entry):
+		# The project ID and item key are encoded in the Activity name.
+		mat = Transformer.DEPRECATED_PROJ_IDS_PARSER.match(entry['activity_name'])
+		tup = mat.groups() if mat else None
+		if tup:
+			try:
+				entry['project_id'], entry['issue_id'], entry['issue_key'] = tup
+			except ValueError as err:
+				# We'll see if it's encoded in the tag.
+				# But this still seems weird.
+				self.print_splitter()
+				print(
+					"Failed to parse JIRA IDs [proj:item:key] in activity: %s (%s)"
+					% (entry['activity_name'], entry['fact_ids'],)
+				)
+				print("WARNING: Unexpected: len(tup) < 3: tup: %s" % (tup,))
+				self.print_splitter()
+
+			for tag in self.entry_tags(entry):
+				try:
+					_prefix, entry['issue_key'], entry['issue_id'] = tag.split('__')[:3]
+				except ValueError as err:
+					# Not an encoded tag; ignore.
+					pass
+
+	def prepare_tempo_payload(self, entry):
+		tempo_payload = {
+			"dateStarted": "%sT00:00:00.000+0000" % (entry['year_month_day'],),
+			"timeSpentSeconds": "%d" % (int(60 * 60 * entry['time_spent']),),
+			"comment": self.cli_opts.comment_delimiter.join(entry['desctimes']),
+			"issue": {
+				"projectId": entry['project_id'],
+				"key": entry['issue_key'],
+				# 2017-08-01: What!? Now I tell myself... I've been manually
+				#   grabbing the Issue ID!! And I tell me I don't need it??!!!
+				#   Whenever I figured this out, and commented out this code,
+				#   I should have fixed all my hamster tags!!
+				# Not needed:
+				#item_id? itemId? hrmm: entry['issue_id'],
+			},
+			"author": {
+				"name": self.cli_opts.username,
+			},
+		}
+		entry['payload'] = tempo_payload
+
+	def post_tempo_payload(self, entry):
+		headers = {'content-type': 'application/json'}
+		req = requests.post(
+			self.cli_opts.tempo_url + '/rest/tempo-timesheets/3/worklogs',
+			auth=(self.cli_opts.username, self.cli_opts.password),
+			data=json_encode(entry['payload']),
+			headers=headers,
+		)
+		# req.text/req.content is the server response, which
+		# on 200 OK is the full JSON on the new worklog entry.
+		# Note that req.ok when (req.status_code == 200).
+		if not req.ok:
+			#import pdb;pdb.set_trace()
+			self.failed_reqs.append(entry)
+			print(
+				'ERROR: Tempo POST Worklog: status_code: %s / text: %s'
+				% (req.status_code, req.text,)
+			)
+
+	# *** Deadly fcns.
+
+	def die_on_parse_errs(self):
+		if self.parse_errs:
+			self.print_splitter()
+			print(
+				"ERROR: Found %d error(s) you need to fix before you can upload."
+				% (len(self.parse_errs),)
+			)
+			#for err in self.parse_errs:
+			#	print(err)
+			sys.exit(2)
+
+	def die_on_failed_reqs(self):
+		if self.failed_reqs:
+			self.write_fail_file(forreal=True)
+			sys.exit(2)
+
+	def write_fail_file(self, forreal):
+		now = datetime.datetime.now()
+
+		basename = self.cli_opts.briefs_file
+		# FIXME/MAYBE: Anyone care about using a magic date format remover?
+		basename = re.sub('[-_\.]?\d{4}[-_\.]?\d{2}[-_\.]?\d{2}[-_\.]?\d{6}\.json$', '', basename)
+		# FIXME/MAYBE: Anyone care about using a MAGIC NAME?
+		basename = re.sub('\.json$', '', basename)
+
+		fail_file = "%s-%s-%02d%02d%02d.json" % (
+			basename,
+			datetime.date.today().isoformat(),
+			now.hour,
+			now.minute,
+			now.second,
+		)
+
+		with open(fail_file, 'x') as fail_f:
+			#for entry in self.failed_reqs:
+			#	fail_f.write(json_encode(entry))
+			if self.failed_reqs:
+				fail_f.write(json.dumps(self.failed_reqs, sort_keys=True, indent=4))
+			else:
+				if not self.cli_opts.testmode:
+					for entry in self.entries:
+						for key in Transformer.ILLEGAL_KEYS:
+							entry.pop(key, None)
+				fail_f.write(json.dumps(self.entries, sort_keys=True, indent=4))
+
+		if forreal:
+			print(
+				"ERROR: Encountered %d error(s) during upload."
+				% (len(self.failed_reqs),)
+			)
+			print("Not all entries were submitted successfully.")
+			print("Please fix the problems and try again on the new file:")
+			print("  %s" % (fail_file,))
+		else:
+			print("A reprinted JSON file with prepared meta was writ for you:")
+			print("  %s" % (fail_file,))
+
+	# *** Print fcns.
+
+	def print_header(self, forreal):
+		print('#########################################################################')
+		if not forreal:
+			print('PASS 1/2 Checking JSON')
+		else:
+			print('PASS 2/2 Tickling TEMPO')
+		print('#########################################################################')
+
+	def print_splitter(self):
+		print('-' * 73)
+
+	def print_entry_payload_brief(self, entry):
+		tempo_payload = entry['payload']
+		json_encode(tempo_payload)
+		#print(tempo_payload)
+		print("Entry: date: %s / time: %s / %s (%s)" % (
+			tempo_payload['dateStarted'],
+			tempo_payload['timeSpentSeconds'],
+			entry['activity_name'],
+			entry['fact_ids'],
+		))
+
+	def print_total_time(self, total_time_spent):
+		self.print_splitter()
+		print(
+			"fact times: total_time_spent: %s / total_hrs: %.2f"
+			% (total_time_spent, total_time_spent / 60.0 / 60.0,)
+		)
+
+	def print_post_req(self, entry):
+		print('POST: Key: %s / Date: %s / Time: %s' % (
+			entry['payload']['issue']['key'],
+			entry['payload']['dateStarted'],
+			entry['payload']['timeSpentSeconds'],
+		))
+		print(entry['payload'])
+
+	def print_final_success(self):
+		self.print_splitter()
+		print('Success!')
+		print()
+		# FIXME: Can/Should we automate submit-for-approval?
+		print("REMEMBER: Logon and submit your timesheet.")
+		# FIXME: Encode 'period' so the correct week is displayed.
+		#  https://domain/jira/secure/TempoUserBoard!timesheet.jspa?period=07112016
+		print("  %s/secure/TempoUserBoard!timesheet.jspa" % (self.cli_opts.tempo_url,))
+		print()
 
 def main():
 	hr = Transformer()
