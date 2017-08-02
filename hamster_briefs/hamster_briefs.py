@@ -1,6 +1,6 @@
 #!/usr/bin/env python3.5
 # (Using py3.5 for subprocess.run().)
-# Last Modified: 2017.05.15 /coding: utf-8
+# Last Modified: 2017.08.02 /coding: utf-8
 # Copyright: © 2016-2017 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -26,7 +26,9 @@ import pyoiler_argparse
 
 import logging
 import pyoiler_logging
-pyoiler_logging.init_logging(pyoiler_logging.DEBUG, log_to_console=True)
+#pyoiler_logging.init_logging(pyoiler_logging.DEBUG, log_to_console=True)
+#pyoiler_logging.init_logging(logging.DEBUG, log_to_stderr=True)
+pyoiler_logging.init_logging(logging.WARNING, log_to_stderr=True)
 log = logging.getLogger('hamster-briefs')
 
 import hamster_briefs.version_hamster

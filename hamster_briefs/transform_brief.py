@@ -106,7 +106,9 @@ from termcolor import colored, cprint
 
 import logging
 import pyoiler_logging
-pyoiler_logging.init_logging(logging.DEBUG, log_to_console=True)
+#pyoiler_logging.init_logging(logging.DEBUG, log_to_console=True)
+#pyoiler_logging.init_logging(logging.DEBUG, log_to_stderr=True)
+pyoiler_logging.init_logging(logging.WARNING, log_to_stderr=True)
 log = logging.getLogger('transform-brief')
 
 SCRIPT_DESC = 'Hamster Brief Transformation Tool'
