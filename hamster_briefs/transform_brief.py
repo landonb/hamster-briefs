@@ -150,6 +150,10 @@ class TxTl_Argparser(pyoiler_argparse.ArgumentParser_Wrap):
 			type=str, help="password",
 		)
 
+		self.add_argument('-t', '--test', dest='testmode',
+			action='store_true', default=False,
+		)
+
 		self.add_argument('--delimiter', dest='comment_delimiter', type=str,
 			# 2016-12-20: Using newlines makes the Tempo content on an
 			#   individual ticket really long.
@@ -274,7 +278,8 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 		self.parse_errs = []
 		self.failed_reqs = []
 		self.update_entries(forreal)
-		self.upload_forreal()
+		if not self.cli_opts.testmode:
+			self.upload_forreal()
 		self.check_failed_reqs()
 
 	def upload_to_tempo(self):
