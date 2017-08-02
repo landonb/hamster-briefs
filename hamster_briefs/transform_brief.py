@@ -249,14 +249,19 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 
 		# NOTE: These get alphabetized when writ to file.
 		new_entry = {
-			"activity_id": activity_id,
+			# The user can use either the name or tags to specify the issue key.
 			"activity_name": activity_name,
-			"category": category,
-			"fact_ids": fact_id,
 			"tags": tags,
-			"time_spent": round(float(time_spent), 3),
+			# fact_ids are used in error output to help user find entries.
+			"fact_ids": fact_id,
+			# The date of the entry, how much time was spent, and a description.
 			"year_month_day": year_month_day,
+			"time_spent": round(float(time_spent), 3),
 			"desctimes": desctimes,
+			# 2017-08-02: activity_id is pretty meaningless to us.
+			#"activity_id": activity_id,
+			# 2017-08-02: category doesn't matter to this script.
+			#"category": category,
 		}
 		self.entries.append(new_entry)
 
@@ -343,29 +348,28 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 		#print(self.entries)
 		#print(json.dumps(self.entries, sort_keys=True, indent=4))
 
-		first_time = True
+		if not forreal:
+			self.prepare_entries()
+		else:
+			for entry in self.entries:
+				#self.print_post_req(entry)
+				self.post_tempo_payload(entry)
+
+	def prepare_entries(self):
 		total_time_spent = 0
 		for entry in self.entries:
+			# FIXME/2017-08-02: entry should maybe be its own class...
+			self.ensure_defaults(entry)
+			self.print_entry_brief(entry)
 			if not self.ensure_entry_keys(entry):
 				continue
 			project_id, issue_key = self.locate_entry_keys(entry)
 			if project_id and issue_key:
 				self.prepare_tempo_payload(entry)
-				if not forreal:
-					if first_time:
-						self.print_splitter()
-						first_time = False
-					self.print_entry_payload_brief(entry)
-					total_time_spent += int(entry['payload']['timeSpentSeconds'])
-		if total_time_spent:
-			# Implied: not forreal
-			self.print_total_time(total_time_spent)
+				#self.print_entry_payload_brief(entry)
+				total_time_spent += int(entry['payload']['timeSpentSeconds'])
+		self.print_total_time(total_time_spent)
 		self.die_on_parse_errs()
-
-		for entry in self.entries:
-			self.print_post_req(entry)
-			if forreal:
-				self.post_tempo_payload(entry)
 
 	ILLEGAL_KEYS = [
 		# Gleaned and/or Verified with Tempo:
@@ -379,25 +383,49 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 
 	def ensure_entry_keys(self, entry):
 		okay = True
+		okay |= self.ensure_item_key_field(entry)
+		okay |= self.ensure_required_keys(entry)
+		okay |= self.desure_illegal_keys(entry)
+		return okay
+
+	def ensure_defaults(self, entry):
+		entry.setdefault('activity_name', '')
+		entry.setdefault('tags', '')
+		entry.setdefault('fact_ids', '')
+		entry.setdefault('year_month_day', '')
+		entry.setdefault('time_spent', '')
+		entry.setdefault('desctimes', '')
+
+	def ensure_item_key_field(self, entry):
+		# We need the item key (e.g., PROJ-123) which can be in either
+		# the activity_name or the tags.
+		okay = True
+		if not entry['activity_name'] and not entry['tags']:
+			okay = False
+			self.add_parse_err(
+				entry, 'Entry missing item key key(s): "activity_name" and/or "tags"'
+			)
+		return okay
+
+	def ensure_required_keys(self, entry):
 		required_keys = [
-			'activity_name',
 			'year_month_day',
 			'time_spent',
 			'desctimes',
 		]
 		missing_keys = []
 		for key in required_keys:
-			try:
-				entry[key]
-			except KeyError:
+			if not entry[key]:
 				missing_keys.append(key)
+		okay = True
 		if missing_keys:
 			okay = False
 			self.add_parse_err(
 				entry, 'Entry missing mandatory key(s): %s' % (missing_keys,)
 			)
-		# Optional keys.
-		entry.setdefault('tags', '')
+		return okay
+
+	def desure_illegal_keys(self, entry):
 		# Illegal keys (used to store internal data).
 		invalid_keys = []
 		for key in Transformer.ILLEGAL_KEYS:
@@ -406,6 +434,7 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 				invalid_keys.append(key)
 			except KeyError:
 				entry[key] = None
+		okay = True
 		if invalid_keys:
 			okay = False
 			self.add_parse_err(
@@ -416,17 +445,6 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 	def locate_entry_keys(self, entry):
 		invalid = self.query_ids_from_tempo_service(entry)
 		if not invalid:
-			if not entry['project_id'] and not entry['issue_key'] and not entry['issue_id']:
-				# Deprecate: The Tedious method: Encode Project ID in the activity,
-				# and encode the Issue ID in either the activity name of the tags.
-				#self.print_splitter()
-				#print(
-				#	"WARNING: Using deprecated method to find Project ID and Issue key: %s (%s)"
-				#	% (entry['activity_name'], entry['fact_ids'],)
-				#)
-				##self.print_splitter()
-				if hasattr(entry, 'activity_name'):
-					self.locate_static_ids_from_activity_name(entry)
 			if not entry['project_id'] and not entry['issue_key'] and not entry['issue_id']:
 				msg = (
 					'JIRA identifiers not found in tags or activity name: tags: "%s"'
@@ -445,7 +463,13 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 	#       'zoom-zoom ddd-ABC-123-JJJ-123-something XYZ-233')
 	# [('ABC', '123'), ('JJJ', '123'), ('XYZ', '233')]
 	# E.g., USER-PREFIX_Don't-Care-ALLCAPSPROJECTKEY123-456
-	PROJ_KEY_PARSER = re.compile(r'(?:-|\s|^)([A-Z0-9]+)-(\d+)(?!\d)')
+	#PROJ_KEY_PARSER = re.compile(r'(?:-|\s|^)([A-Z0-9]+)-(\d+)(?!\d)')
+	# Allow `:` before item key, e.g., blah:PROJ-123
+	#PROJ_KEY_PARSER = re.compile(r'(?:-|:|\s|^)([A-Z0-9]+)-(\d+)(?!\d)')
+	# Allow `_` before item key, e.g., blah_PROJ-123
+	PROJ_KEY_PARSER = re.compile(r'(?:-|:|_|\s|^)([A-Z0-9]+)-(\d+)(?!\d)')
+
+	#ISSUE_KEY_PARSER = re.compile(r'^([A-Z0-9]+)-(\d+)$')
 
 	def query_ids_from_tempo_service(self, entry):
 		try:
@@ -468,8 +492,6 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 			)
 		except KeyError:
 			self.get_issue_meta(entry, project_key, item_number)
-
-	PROJ_ID_PARSER = re.compile(r'^\d{5}$')
 
 	def get_issue_meta(self, entry, project_key, item_number):
 		issue_key = '%s-%s' % (project_key, item_number,)
@@ -497,6 +519,8 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 			)
 		else:
 			self.add_parse_err(entry, 'Tempo Item Not Found: endpoint: %s' % (endpoint,))
+
+	PROJ_ID_PARSER = re.compile(r'^\d{5}$')
 
 	def parse_issue_meta(self, entry, tree, issue_key, project_key, item_number):
 		try:
@@ -556,8 +580,7 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 				project_key, item_number = name_matches[0]
 			elif tags_matches:
 				project_key, item_number = tags_matches[0]
-			# else, nothing found; use deprecated method.
-			# FIXME/2017-08-02: Remove deprecated code...
+			# else, someone up stack will raise the alarm.
 		return project_key, item_number, not okay
 
 	def validate_id_matches(self, entry, name_matches, tags_matches):
@@ -582,6 +605,7 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 					name_matches,
 				)
 			)
+		# FIXME/2017-08-02: Allow multiple tags. Could split time equally between them!
 		elif len(tags_matches) > 1:
 			okay = False
 			self.add_parse_err(
@@ -593,13 +617,7 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 		# else, either only 1 match, or none.
 		return okay
 
-	# E.g., 12912:37462:project-Name
-	DEPRECATED_PROJ_IDS_PARSER = re.compile(r'.* \[(\d+):(\d+):([-a-zA-Z0-9]+)\]\w*')
-
 	def entry_tags(self, entry):
-		# For client-level Activities (sans ticket numbers),
-		# a tag should contain the issue_key. Format is:
-		#   exo__CLIENT-TICKETNUMBER__JIRAKEYID
 		try:
 			if entry['tags']:
 				# The user can use more than one tag, which hamster, er,
@@ -611,36 +629,12 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 			tags = []
 		return tags
 
-	def locate_static_ids_from_activity_name(self, entry):
-		# The project ID and item key are encoded in the Activity name.
-		mat = Transformer.DEPRECATED_PROJ_IDS_PARSER.match(entry['activity_name'])
-		tup = mat.groups() if mat else None
-		if tup:
-			try:
-				entry['project_id'], entry['issue_id'], entry['issue_key'] = tup
-			except ValueError as err:
-				# We'll see if it's encoded in the tag.
-				# But this still seems weird.
-				self.print_splitter()
-				print(
-					"Failed to parse JIRA IDs [proj:item:key] in activity: %s (%s)"
-					% (entry['activity_name'], entry['fact_ids'],)
-				)
-				print("WARNING: Unexpected: len(tup) < 3: tup: %s" % (tup,))
-				self.print_splitter()
-
-			for tag in self.entry_tags(entry):
-				try:
-					_prefix, entry['issue_key'], entry['issue_id'] = tag.split('__')[:3]
-				except ValueError as err:
-					# Not an encoded tag; ignore.
-					pass
-
 	def prepare_tempo_payload(self, entry):
 		tempo_payload = {
-			"dateStarted": "%sT00:00:00.000+0000" % (entry['year_month_day'],),
-			"timeSpentSeconds": "%d" % (int(60 * 60 * entry['time_spent']),),
-			"comment": self.cli_opts.comment_delimiter.join(entry['desctimes']),
+			"author": {
+				"name": self.cli_opts.username,
+			},
+			# NOTE: In the XML, the issue is called the item.
 			"issue": {
 				"projectId": entry['project_id'],
 				"key": entry['issue_key'],
@@ -651,9 +645,9 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 				# Not needed:
 				#item_id? itemId? hrmm: entry['issue_id'],
 			},
-			"author": {
-				"name": self.cli_opts.username,
-			},
+			"dateStarted": "%sT00:00:00.000+0000" % (entry['year_month_day'],),
+			"timeSpentSeconds": "%d" % (int(60 * 60 * entry['time_spent']),),
+			"comment": self.cli_opts.comment_delimiter.join(entry['desctimes']),
 		}
 		entry['payload'] = tempo_payload
 
@@ -695,23 +689,32 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 			sys.exit(2)
 
 	def write_fail_file(self, forreal):
-		now = datetime.datetime.now()
-
 		basename = self.cli_opts.briefs_file
 		# FIXME/MAYBE: Anyone care about using a magic date format remover?
-		basename = re.sub('[-_\.]?\d{4}[-_\.]?\d{2}[-_\.]?\d{2}[-_\.]?\d{6}\.json$', '', basename)
+		basename = re.sub(
+			'[-_\.]?\d{4}[-_\.]?\d{2}[-_\.]?\d{2}[-_\.]?\d{6}\.json$', '', basename
+		)
 		# FIXME/MAYBE: Anyone care about using a MAGIC NAME?
 		basename = re.sub('\.json$', '', basename)
 
-		fail_file = "%s-%s-%02d%02d%02d.json" % (
-			basename,
-			datetime.date.today().isoformat(),
-			now.hour,
-			now.minute,
-			now.second,
-		)
+		if forreal:
+			now = datetime.datetime.now()
+			fail_file = "%s-%s-%02d%02d%02d.json" % (
+				basename,
+				datetime.date.today().isoformat(),
+				now.hour,
+				now.minute,
+				now.second,
+			)
+			file_mode = 'x'
+		else:
+			fail_file = "%s-%s-TESTMODE.json" % (
+				basename,
+				datetime.date.today().isoformat(),
+			)
+			file_mode = 'w'
 
-		with open(fail_file, 'x') as fail_f:
+		with open(fail_file, file_mode) as fail_f:
 			#for entry in self.failed_reqs:
 			#	fail_f.write(json_encode(entry))
 			if self.failed_reqs:
@@ -733,7 +736,8 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 			print("  %s" % (fail_file,))
 		else:
 			print("A reprinted JSON file with prepared meta was writ for you:")
-			print("  %s" % (fail_file,))
+			#print("  %s" % (os.path.join(os.getcwd(), fail_file),))
+			print("  %s" % (os.path.join(os.path.basename(os.getcwd()), fail_file),))
 
 	# *** Print fcns.
 
@@ -748,6 +752,15 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 	def print_splitter(self):
 		print('-' * 73)
 
+	def print_entry_brief(self, entry):
+		self.print_splitter()
+		print("Entry: %s (%s) / tags: %s/ %s" % (
+			entry['activity_name'] or '[Nameless Activity]',
+			entry['fact_ids'] or '[IDless Facts]',
+			entry['tags'] or '[Tagless Facts]',
+			entry['year_month_day'],
+		))
+
 	def print_entry_payload_brief(self, entry):
 		tempo_payload = entry['payload']
 		json_encode(tempo_payload)
@@ -755,8 +768,8 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 		print("Entry: date: %s / time: %s / %s (%s)" % (
 			tempo_payload['dateStarted'],
 			tempo_payload['timeSpentSeconds'],
-			entry['activity_name'],
-			entry['fact_ids'],
+			entry['activity_name'] or '[Nameless Activity]',
+			entry['fact_ids'] or '[IDless Facts]',
 		))
 
 	def print_total_time(self, total_time_spent):
