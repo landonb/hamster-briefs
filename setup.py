@@ -36,6 +36,7 @@ dependency_links_github=[
     'https://github.com/landonb/pyoiler-inflector/tarball/master#egg=pyoiler-inflector-1.0',
     'https://github.com/landonb/pyoiler-logging/tarball/master#egg=pyoiler-logging-99999',
     'https://github.com/landonb/pyoiler-timedelta/tarball/master#egg=pyoiler-timedelta-2',
+    'https://github.com/landonb/termcolor/tarball/master#egg=termcolor-1.1.0',
 ]
 
 # Get the long description from the README file
@@ -113,6 +114,7 @@ setup(
         'pyoiler_inflector',
         'pyoiler_logging',
         'pyoiler_timedelta',
+        'termcolor',
     ],
 
     # See above. Use requirements.txt, not dependency_links.

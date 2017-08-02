@@ -2,4 +2,5 @@
 -e git+https://github.com/landonb/pyoiler-inflector.git#egg=pyoiler-inflector
 -e git+https://github.com/landonb/pyoiler-logging.git#egg=pyoiler-logging
 -e git+https://github.com/landonb/pyoiler-timedelta.git#egg=pyoiler-timedelta
+-e git+https://github.com/landonb/termcolor.git#egg=termcolor
 

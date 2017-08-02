@@ -129,6 +129,7 @@ so grab them first and *then* install ``hamster-briefs``.:
     git clone https://github.com/landonb/pyoiler-inflector.git
     git clone https://github.com/landonb/pyoiler-logging.git
     git clone https://github.com/landonb/pyoiler-timedelta.git
+    git clone https://github.com/landonb/termcolor.git
 
     while IFS= read -r -d '' pyoiler_path; do
         pushd ${pyoiler_path}
@@ -138,13 +139,14 @@ so grab them first and *then* install ``hamster-briefs``.:
 
     git clone https://github.com/landonb/hamster-briefs.git
 
-    cd hamster-briefs
+    cd /hamstercraft/hamster-briefs
 
     pip install \
         --find-links /hamstercraft/pyoiler-argparse/dist \
         --find-links /hamstercraft/pyoiler-inflector/dist \
         --find-links /hamstercraft/pyoiler-logging/dist \
         --find-links /hamstercraft/pyoiler-timedelta/dist \
+        --find-links /hamstercraft/termcolor/dist \
         --user \
         --verbose \
         -e .
@@ -164,8 +166,10 @@ Or better yet:
         done < <(find . -maxdepth 1 -type d -name "pyoiler-*" -print0)
     }
 
-    cd /pyoilerplate/
+    cd /pyoilerplate
     source_pyoilers_editable_user_install
+    cd /pyoilerplate/termcolor
+    pip3 install --user -e .
 
     # MAYBE/2016-11-28: Having issues in 14.04 (where py3.5 comes from deadsnakes).
     # Is this necessary:
