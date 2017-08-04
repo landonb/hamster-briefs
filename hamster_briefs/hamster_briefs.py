@@ -1,6 +1,6 @@
 #!/usr/bin/env python3.5
 # (Using py3.5 for subprocess.run().)
-# Last Modified: 2017.08.02 /coding: utf-8
+# Last Modified: 2017.08.04 /coding: utf-8
 # Copyright: © 2016-2017 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -632,7 +632,9 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 		list_types_set = set(self.cli_opts.do_list_types)
 		unknown_types = list_types_set.difference(HR_Argparser.all_report_types)
 		if unknown_types:
-			log.warning('Unknown print list display output types: %s' % (unknown_types,))
+			log.warning(
+				'Unknown print list display output types: %s' % (unknown_types,)
+			)
 
 		for list_type in self.cli_opts.do_list_types:
 			self.process_list_type(list_type)
@@ -657,7 +659,10 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 			self.curs.execute(sql_select)
 			count = self.curs.fetchone()
 			if count[0] not in (0, 1):
-				log.fatal('DATA ERROR: Unexpected count: %s / query: %s' % (count[0], sql_select,))
+				log.fatal(
+					'DATA ERROR: Unexpected count: %s / query: %s'
+					% (count[0], sql_select,)
+				)
 				sql_select = "SELECT * FROM facts WHERE end_time IS NULL"
 				self.print_output_generic_fcn_name(sql_select)
 				print('You must fix one or more records to continue.')
@@ -1001,8 +1006,11 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 				else: # not LEAK_SQLITE3_ERRORS
 					# ret.stdout will be None because everything goes to stdout.
 					#ret = subprocess.run(sql_args, stderr=subprocess.PIPE)
-					# Or we can capture stdout instead and strip that first blank line.
-					ret = subprocess.run(sql_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+					# Or we can capture stdout instead and strip that first
+					# blank line.
+					ret = subprocess.run(
+						sql_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+					)
 
 					curr_first_col = None
 					last_first_col = None
