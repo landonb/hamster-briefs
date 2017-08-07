@@ -473,8 +473,8 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 	#PROJ_KEY_PARSER = re.compile(r'(?:-|:|\s|^)([A-Z0-9]+)-(\d+)(?!\d)')
 	# Allow `_` before item key, e.g., blah_PROJ-123
 	#PROJ_KEY_PARSER = re.compile(r'(?:-|:|_|\s|^)([A-Z0-9]+)-(\d+)(?!\d)')
-	# Allow `[` before item key, e.g., [PROJ-123]
-	PROJ_KEY_PARSER = re.compile(r'(?:-|:|_|[|\s|^)([A-Z0-9]+)-(\d+)(?!\d)')
+	# Allow `[` before item key, e.g., [PROJ-123] (NOTE: [ needs to be \delimited.)
+	PROJ_KEY_PARSER = re.compile(r'(?:-|:|_|\[|\s|^)([A-Z0-9]+)-(\d+)(?!\d)')
 
 	#ISSUE_KEY_PARSER = re.compile(r'^([A-Z0-9]+)-(\d+)$')
 
