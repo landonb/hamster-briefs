@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Last Modified: 2017.08.02 /coding: utf-8
+# Last Modified: 2017.08.07 /coding: utf-8
 # Copyright: © 2016-2017 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -277,7 +277,16 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 	def upload_to_tempo(self):
 		self.entries = []
 		with open(self.cli_opts.briefs_file, 'r') as briefs_f:
-			self.entries = json_decode(briefs_f.read())
+			try:
+				self.entries = json_decode(briefs_f.read())
+			except chjson.DecodeError as err:
+				self.highlight(
+					'ERROR: Could not decode JSON in %s'
+					% (self.cli_opts.briefs_file,)
+				)
+				print(err)
+				#cprint('"%s"' % (err,), 'yellow', 'on_red', attrs=['bold'])
+				sys.exit(1)
 
 		# Ask for permission when there are lots of entries.
 		self.check_if_oh_so_many()
