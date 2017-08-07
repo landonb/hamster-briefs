@@ -303,15 +303,9 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 			self.write_fail_file(forreal=False)
 
 	def add_parse_err(self, entry, msg):
-		#print(colored('Hello, World!', 'red', attrs=['reverse', 'blink']))
-		#cprint('Hello, World!', 'green', 'on_red')
-		#for i in range(10):
-		#	cprint(i, 'magenta', end=' ')
-		#highlight = lambda x: cprint(x, 'red', 'on_cyan')
-		highlight = lambda x: cprint(x, 'red', 'on_white', attrs=['bold'])
 		if not self.parse_errs:
 			self.print_splitter()
-		highlight(
+		self.highlight(
 			#'ERROR: In: "%s" (%s) / %s'
 			'ERROR: In: "%s" (%s)\n  %s'
 			#?% (entry['activity_name'], entry['fact_ids'], msg,)
@@ -753,6 +747,14 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 			print("  %s" % (os.path.join(os.path.basename(os.getcwd()), fail_file),))
 
 	# *** Print fcns.
+
+	def highlight(self, msg):
+		#print(colored('Hello, World!', 'red', attrs=['reverse', 'blink']))
+		#cprint('Hello, World!', 'green', 'on_red')
+		#for i in range(10):
+		#	cprint(i, 'magenta', end=' ')
+		#cprint(msg, 'red', 'on_cyan')
+		cprint(msg, 'red', 'on_white', attrs=['bold'])
 
 	def print_header(self, forreal):
 		print('#########################################################################')
