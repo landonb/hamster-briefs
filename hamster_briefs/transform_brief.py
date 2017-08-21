@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Last Modified: 2017.08.07 /coding: utf-8
+# Last Modified: 2017.08.21 /coding: utf-8
 # Copyright: © 2016-2017 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -438,12 +438,16 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 				entry[key]
 				invalid_keys.append(key)
 			except KeyError:
+				#entry[key] = None
+				pass
+			finally:
 				entry[key] = None
 		okay = True
 		if invalid_keys:
-			okay = False
-			self.add_parse_err(
-				entry, 'Entry contains illegal key(s): %s' % (invalid_keys,)
+			#okay = False
+			err_msg = 'Entry contains illegal key(s): %s' % (invalid_keys,)
+			#self.add_parse_err(entry, err_msg)
+			print("Ignoring: %s" % (err_msg,)
 			)
 		return okay
 
@@ -725,13 +729,14 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 			#for entry in self.failed_reqs:
 			#	fail_f.write(json_encode(entry))
 			if self.failed_reqs:
-				fail_f.write(json.dumps(self.failed_reqs, sort_keys=True, indent=4))
+				records = self.failed_reqs
 			else:
-				if not self.cli_opts.testmode:
-					for entry in self.entries:
-						for key in Transformer.ILLEGAL_KEYS:
-							entry.pop(key, None)
-				fail_f.write(json.dumps(self.entries, sort_keys=True, indent=4))
+				records = self.entries
+			if not self.cli_opts.testmode:
+				for record in records:
+					for key in Transformer.ILLEGAL_KEYS:
+						record.pop(key, None)
+			fail_f.write(json.dumps(records, sort_keys=True, indent=4))
 
 		if forreal:
 			print(
