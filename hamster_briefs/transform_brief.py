@@ -517,6 +517,9 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 		if req.ok:
 			try:
 				tree = ET.fromstring(req.text)
+				# import xml.dom.minidom
+				# xml = xml.dom.minidom.parseString(req.text)
+				# pretty_xml_as_string = xml.toprettyxml()
 			except Exception as err:
 				self.add_parse_err(entry, 'Tempo Parse XML: %s' % (err,))
 			else:
@@ -544,6 +547,19 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 			key_elem = item_elem.find('key')
 			doc_issue_key = key_elem.text
 			doc_issue_id = key_elem.get('id')
+
+			status_elem = item_elem.find('status').get('id')
+			# Get the Issue status, e.g.,
+			# <status id="1" description="This is an issue that requires attention">Open</status>
+			# <status id="10626" description="">Not Needed - Closed</status>
+			# <status id="11026" description="">Ready for Release to Production</status>
+			if status_elem.lower().find('closed') != -1:
+				self.add_parse_err(
+					entry,
+					'Project Closed: "%s": Repoen the project to log time against issues' % (
+						issue_key
+					)
+				)
 		except KeyError as err:
 			self.add_parse_err(
 				entry,
