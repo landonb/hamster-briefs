@@ -1,6 +1,6 @@
 #!/usr/bin/env python3.5
 # (Using py3.5 for subprocess.run().)
-# Last Modified: 2017.08.04 /coding: utf-8
+# Last Modified: 2017.08.23 /coding: utf-8
 # Copyright: © 2016-2017 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -53,25 +53,31 @@ class HR_Argparser(pyoiler_argparse.ArgumentParser_Wrap):
 		#'sprint-tight',
 		'daily',
 		'weekly',
+		#'tags',
 		'activity',
 		'category',
 		'totals',
 		'satsun',
 		'sprint',
+		'daily-tags',
 		'daily-activity',
 		'daily-category',
 		'daily-totals',
 		'weekly-satsun',
 		'weekly-sprint',
+		#'weekly-tags',
 		'weekly-activity',
 		'weekly-category',
 		'weekly-totals',
+		#'weekly-tags-satsun',
 		'weekly-activity-satsun',
 		'weekly-category-satsun',
 		'weekly-totals-satsun',
+		#'weekly-tags-sprint',
 		'weekly-activity-sprint',
 		'weekly-category-sprint',
 		'weekly-totals-sprint',
+		#'gross-tags',
 		'gross-activity',
 		'gross-category',
 		'gross-totals',
@@ -80,24 +86,29 @@ class HR_Argparser(pyoiler_argparse.ArgumentParser_Wrap):
 	])
 
 	gross_report = [
+		#'gross-tags',
 		'gross-activity',
 		'gross-category',
 		'gross-totals',
 	]
 
 	weekly_report = [
+		'daily-tags',
 		'daily-activity',
 		'daily-category',
 		'daily-totals',
+		#'weekly-tags-satsun',
 		'weekly-activity-satsun',
 		'weekly-category-satsun',
 		'weekly-totals-satsun',
 	]
 
 	sprint_report = [
+		'daily-tags',
 		'daily-activity',
 		'daily-category',
 		'daily-totals',
+		#'weekly-tags-sprint',
 		'weekly-activity-sprint',
 		'weekly-category-sprint',
 		'weekly-totals-sprint',
@@ -681,6 +692,8 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 			self.list_gross_per_category()
 		elif list_type == 'gross-totals':
 			self.list_gross_totals()
+		elif list_type == 'daily-tags':
+			self.list_daily_per_tag()
 		elif list_type == 'daily-activity':
 			self.list_daily_per_activity()
 		elif list_type == 'daily-category':
@@ -1180,12 +1193,20 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 	def list_gross_totals(self):
 		self.list_gross_wrap('GROSS', False, False)
 
-	def list_daily_per_activity(self):
+	def list_daily_per_tag(self):
+		self.list_daily_per_activity(
+			header='DAILY ACTIVITY-TAG TOTALS',
+			group_by='yrjul, activity_id, tag_names'
+		)
+
+	def list_daily_per_activity(self, header='DAILY ACTIVITY TOTALS', group_by='yrjul, activity_id'):
 		print()
-		print('DAILY ACTIVITY TOTALS')
+		#print('DAILY ACTIVITY TOTALS')
+		print(header)
 		#print('=====================')
 		print('===============================================================')
 		self.setup_sql_fact_durations()
+		self.str_params['SQL_GROUP_BY'] = 'GROUP BY %s' % (group_by,)
 		sql_select = """
 			SELECT
 				%(SQL_DAY_OF_WEEK)s
@@ -1196,7 +1217,7 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 				, activity_name
 				, tag_names
 			FROM (%(SQL_FACT_DURATIONS)s) AS project_time
-			GROUP BY yrjul, activity_id
+			%(SQL_GROUP_BY)s
 			ORDER BY start_time, activity_name
 		""" % self.str_params
 		self.print_output_generic_fcn_name(sql_select, output_split_days=self.cli_opts.output_split_days)
