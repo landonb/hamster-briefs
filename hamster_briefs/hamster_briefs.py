@@ -49,36 +49,42 @@ class HR_Argparser(pyoiler_argparse.ArgumentParser_Wrap):
 		'gross',
 		'weekly-summary',
 		'sprint-summary',
-		#'weekly-tight',
-		#'sprint-tight',
+		'weekly-report',
+		'sprint-report',
 		'daily',
 		'weekly',
-		#'tags',
+		'tag',
 		'activity',
+		'activity-tag',
 		'category',
 		'totals',
 		'satsun',
 		'sprint',
-		'daily-tags',
+		'daily-tag',
 		'daily-activity',
+		'daily-activity-tag',
 		'daily-category',
 		'daily-totals',
 		'weekly-satsun',
 		'weekly-sprint',
-		#'weekly-tags',
+		'weekly-tag',
 		'weekly-activity',
+		'weekly-activity-tag',
 		'weekly-category',
 		'weekly-totals',
-		#'weekly-tags-satsun',
-		'weekly-activity-satsun',
-		'weekly-category-satsun',
-		'weekly-totals-satsun',
-		#'weekly-tags-sprint',
-		'weekly-activity-sprint',
-		'weekly-category-sprint',
-		'weekly-totals-sprint',
-		#'gross-tags',
+		'satsun-tag',
+		'satsun-activity',
+		'satsun-activity-tag',
+		'satsun-category',
+		'satsun-totals',
+		'sprint-tag',
+		'sprint-activity',
+		'sprint-activity-tag',
+		'sprint-category',
+		'sprint-totals',
+		'gross-tag',
 		'gross-activity',
+		'gross-activity-tag',
 		'gross-category',
 		'gross-totals',
 		'report',
@@ -86,32 +92,37 @@ class HR_Argparser(pyoiler_argparse.ArgumentParser_Wrap):
 	])
 
 	gross_report = [
-		#'gross-tags',
+		'gross-tag',
 		'gross-activity',
+		'gross-activity-tag',
 		'gross-category',
 		'gross-totals',
 	]
 
 	weekly_report = [
-		'daily-tags',
+		'daily-tag',
 		'daily-activity',
+		'daily-activity-tag',
 		'daily-category',
 		'daily-totals',
-		#'weekly-tags-satsun',
-		'weekly-activity-satsun',
-		'weekly-category-satsun',
-		'weekly-totals-satsun',
+		'satsun-tag',
+		'satsun-activity',
+		'satsun-activity-tag',
+		'satsun-category',
+		'satsun-totals',
 	]
 
 	sprint_report = [
-		'daily-tags',
+		'daily-tag',
 		'daily-activity',
+		'daily-activity-tag',
 		'daily-category',
 		'daily-totals',
-		#'weekly-tags-sprint',
-		'weekly-activity-sprint',
-		'weekly-category-sprint',
-		'weekly-totals-sprint',
+		'sprint-tag',
+		'sprint-activity',
+		'sprint-activity-tag',
+		'sprint-category',
+		'sprint-totals',
 	]
 
 	# 0 is Sunday; 6 is Saturday.
@@ -212,9 +223,13 @@ class HR_Argparser(pyoiler_argparse.ArgumentParser_Wrap):
 			action='store_true', default=False,
 		)
 
+		# Sort, so, e.g., `hamster-briefs -r XXX` shows report-types in
+		# alphabetical order.
+		reptyps = list(HR_Argparser.all_report_types)
+		reptyps.sort()
 		self.add_argument('-r', '--report-types', dest='do_list_types',
 			action='append', type=str, metavar='REPORT_TYPE',
-			choices=HR_Argparser.all_report_types, default=[],
+			choices=reptyps, default=[],
 		)
 
 		self.add_argument('-A', '--list-all', dest='do_list_all',
@@ -250,6 +265,14 @@ class HR_Argparser(pyoiler_argparse.ArgumentParser_Wrap):
 		self.add_argument('-s', '--split-days', dest='output_split_days',
 			action='store_true', default=False,
 			help="Print newline between days. NOTE: Not honored by all report types.",
+		)
+
+		self.add_argument('-T', '--show-tags', dest='show_tags',
+			action='store_true', default=False,
+		)
+
+		self.add_argument('-C', '--show-categories', dest='show_cats',
+			action='store_true', default=False,
 		)
 
 		# MAYBE/#XXXs: A few new features.
@@ -535,7 +558,9 @@ class HR_Argparser(pyoiler_argparse.ArgumentParser_Wrap):
 			#  See: self.cli_opts.do_list_all
 			# Hahaha, this block is ridiculous.
 			if list_type == 'gross':
+				self.setup_do_list_types_add('gross-tag')
 				self.setup_do_list_types_add('gross-activity')
+				self.setup_do_list_types_add('gross-activity-tag')
 				self.setup_do_list_types_add('gross-category')
 				self.setup_do_list_types_add('gross-totals')
 			elif list_type == 'weekly-summary':
@@ -545,66 +570,99 @@ class HR_Argparser(pyoiler_argparse.ArgumentParser_Wrap):
 				for report_type in HR_Argparser.sprint_report:
 					self.setup_do_list_types_add(report_type)
 			elif list_type == 'weekly-report':
+				self.setup_do_list_types_add('daily-tag')
 				self.setup_do_list_types_add('daily-activity')
+				self.setup_do_list_types_add('daily-activity-tag')
 				self.setup_do_list_types_add('daily-totals')
-				self.setup_do_list_types_add('weekly-category-satsun')
-				self.setup_do_list_types_add('weekly-totals-satsun')
+				self.setup_do_list_types_add('satsun-category')
+				self.setup_do_list_types_add('satsun-totals')
 			elif list_type == 'sprint-report':
+				self.setup_do_list_types_add('daily-tag')
 				self.setup_do_list_types_add('daily-activity')
+				self.setup_do_list_types_add('daily-activity-tag')
 				self.setup_do_list_types_add('daily-totals')
-				self.setup_do_list_types_add('weekly-category-sprint')
-				self.setup_do_list_types_add('weekly-totals-sprint')
+				self.setup_do_list_types_add('sprint-category')
+				self.setup_do_list_types_add('sprint-totals')
 			elif list_type == 'daily':
-				#self.setup_do_list_types_add('daily-activity')
-				#self.setup_do_list_types_add('daily-category')
 				self.setup_do_list_types_add('daily-totals')
 				self.setup_do_list_types_add('daily-category')
+				self.setup_do_list_types_add('daily-activity-tag')
 				self.setup_do_list_types_add('daily-activity')
+				self.setup_do_list_types_add('daily-tag')
 			elif list_type == 'weekly':
-				self.setup_do_list_types_add('weekly-activity-satsun')
-				self.setup_do_list_types_add('weekly-category-satsun')
-				self.setup_do_list_types_add('weekly-totals-satsun')
-				self.setup_do_list_types_add('weekly-activity-sprint')
-				self.setup_do_list_types_add('weekly-category-sprint')
-				self.setup_do_list_types_add('weekly-totals-sprint')
+				self.setup_do_list_types_add('satsun-tag')
+				self.setup_do_list_types_add('satsun-activity')
+				self.setup_do_list_types_add('satsun-activity-tag')
+				self.setup_do_list_types_add('satsun-category')
+				self.setup_do_list_types_add('satsun-totals')
+				self.setup_do_list_types_add('sprint-tag')
+				self.setup_do_list_types_add('sprint-activity')
+				self.setup_do_list_types_add('sprint-activity-tag')
+				self.setup_do_list_types_add('sprint-category')
+				self.setup_do_list_types_add('sprint-totals')
+			elif list_type == 'tag':
+				self.setup_do_list_types_add('daily-tag')
+				self.setup_do_list_types_add('satsun-tag')
+				self.setup_do_list_types_add('sprint-tag')
+				self.setup_do_list_types_add('gross-tag')
 			elif list_type == 'activity':
 				self.setup_do_list_types_add('daily-activity')
-				self.setup_do_list_types_add('weekly-activity-satsun')
-				self.setup_do_list_types_add('weekly-activity-sprint')
+				self.setup_do_list_types_add('satsun-activity')
+				self.setup_do_list_types_add('sprint-activity')
+				self.setup_do_list_types_add('gross-activity')
+			elif list_type == 'activity-tag':
+				self.setup_do_list_types_add('daily-activity-tag')
+				self.setup_do_list_types_add('satsun-activity-tag')
+				self.setup_do_list_types_add('sprint-activity-tag')
+				self.setup_do_list_types_add('gross-activity')
 			elif list_type == 'category':
 				self.setup_do_list_types_add('daily-category')
-				self.setup_do_list_types_add('weekly-category-satsun')
-				self.setup_do_list_types_add('weekly-category-sprint')
+				self.setup_do_list_types_add('satsun-category')
+				self.setup_do_list_types_add('sprint-category')
+				self.setup_do_list_types_add('gross-category')
 			elif list_type == 'totals':
 				self.setup_do_list_types_add('daily-totals')
-				self.setup_do_list_types_add('weekly-totals-satsun')
-				self.setup_do_list_types_add('weekly-totals-sprint')
+				self.setup_do_list_types_add('satsun-totals')
+				self.setup_do_list_types_add('sprint-totals')
+				self.setup_do_list_types_add('gross-totals')
 			elif list_type in ['satsun', 'weekly-satsun',]:
-				self.setup_do_list_types_add('weekly-activity-satsun')
-				self.setup_do_list_types_add('weekly-category-satsun')
-				self.setup_do_list_types_add('weekly-totals-satsun')
+				self.setup_do_list_types_add('satsun-tag')
+				self.setup_do_list_types_add('satsun-activity')
+				self.setup_do_list_types_add('satsun-activity-tag')
+				self.setup_do_list_types_add('satsun-category')
+				self.setup_do_list_types_add('satsun-totals')
 			elif list_type in ['sprint', 'weekly-sprint',]:
-				self.setup_do_list_types_add('weekly-activity-sprint')
-				self.setup_do_list_types_add('weekly-category-sprint')
-				self.setup_do_list_types_add('weekly-totals-sprint')
+				self.setup_do_list_types_add('sprint-tag')
+				self.setup_do_list_types_add('sprint-activity')
+				self.setup_do_list_types_add('sprint-activity-tag')
+				self.setup_do_list_types_add('sprint-category')
+				self.setup_do_list_types_add('sprint-totals')
+			elif list_type == 'weekly-tag':
+				self.setup_do_list_types_add('satsun-tag')
+				self.setup_do_list_types_add('sprint-tag')
 			elif list_type == 'weekly-activity':
-				self.setup_do_list_types_add('weekly-activity-satsun')
-				self.setup_do_list_types_add('weekly-activity-sprint')
+				self.setup_do_list_types_add('satsun-activity')
+				self.setup_do_list_types_add('sprint-activity')
+			elif list_type == 'weekly-activity-tag':
+				self.setup_do_list_types_add('satsun-activity-tag')
+				self.setup_do_list_types_add('sprint-activity-tag')
 			elif list_type == 'weekly-category':
-				self.setup_do_list_types_add('weekly-category-satsun')
-				self.setup_do_list_types_add('weekly-category-sprint')
+				self.setup_do_list_types_add('satsun-category')
+				self.setup_do_list_types_add('sprint-category')
 			elif list_type == 'weekly-totals':
-				self.setup_do_list_types_add('weekly-totals-satsun')
-				self.setup_do_list_types_add('weekly-totals-sprint')
+				self.setup_do_list_types_add('satsun-totals')
+				self.setup_do_list_types_add('sprint-totals')
 			elif list_type == 'weekly-totals':
-				self.setup_do_list_types_add('weekly-totals-satsun')
-				self.setup_do_list_types_add('weekly-totals-sprint')
+				self.setup_do_list_types_add('satsun-totals')
+				self.setup_do_list_types_add('sprint-totals')
 			elif list_type in ['report', 'report-activity',]:
 				# See also: self.cli_opts.quick_list
+				self.setup_do_list_types_add('daily-tag')
 				self.setup_do_list_types_add('daily-activity')
-				self.setup_do_list_types_add('weekly-category-sprint')
+				self.setup_do_list_types_add('daily-activity-tag')
+				self.setup_do_list_types_add('sprint-category')
 				self.setup_do_list_types_add('daily-totals')
-				self.setup_do_list_types_add('weekly-totals-sprint')
+				self.setup_do_list_types_add('sprint-totals')
 			else:
 				# Not a group type.
 				self.setup_do_list_types_add(list_type)
@@ -638,6 +696,7 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 		if ((self.cli_opts.do_list_all)
 			or ('all' in self.cli_opts.do_list_types)
 		):
+			self.list_type = 'all'
 			self.list_all()
 
 		list_types_set = set(self.cli_opts.do_list_types)
@@ -648,6 +707,7 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 			)
 
 		for list_type in self.cli_opts.do_list_types:
+			self.list_type = list_type
 			self.process_list_type(list_type)
 
 		self.conn.close()
@@ -686,31 +746,45 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 		# facts in specified time.
 
 	def process_list_type(self, list_type):
-		if list_type == 'gross-activity':
+		if list_type == 'gross-tag':
+			self.list_gross_per_tag()
+		elif list_type == 'gross-activity':
 			self.list_gross_per_activity()
+		elif list_type == 'gross-activity-tag':
+			self.list_gross_per_activity_tag()
 		elif list_type == 'gross-category':
 			self.list_gross_per_category()
 		elif list_type == 'gross-totals':
 			self.list_gross_totals()
-		elif list_type == 'daily-tags':
+		elif list_type == 'daily-tag':
 			self.list_daily_per_tag()
 		elif list_type == 'daily-activity':
 			self.list_daily_per_activity()
+		elif list_type == 'daily-activity-tag':
+			self.list_daily_per_activity_tag()
 		elif list_type == 'daily-category':
 			self.list_daily_per_category()
 		elif list_type == 'daily-totals':
 			self.list_daily_totals()
-		elif list_type == 'weekly-activity-satsun':
+		elif list_type == 'satsun-tag':
+			self.list_satsun_weekly_per_tag()
+		elif list_type == 'satsun-activity':
 			self.list_satsun_weekly_per_activity()
-		elif list_type == 'weekly-category-satsun':
+		elif list_type == 'satsun-activity-tag':
+			self.list_satsun_weekly_per_activity_tag()
+		elif list_type == 'satsun-category':
 			self.list_satsun_weekly_per_category()
-		elif list_type == 'weekly-totals-satsun':
+		elif list_type == 'satsun-totals':
 			self.list_satsun_weekly_totals()
-		elif list_type == 'weekly-activity-sprint':
+		elif list_type == 'sprint-tag':
+			self.list_sprint_weekly_per_tag()
+		elif list_type == 'sprint-activity':
 			self.list_sprint_weekly_per_activity()
-		elif list_type == 'weekly-category-sprint':
+		elif list_type == 'sprint-activity-tag':
+			self.list_sprint_weekly_per_activity_tag()
+		elif list_type == 'sprint-category':
 			self.list_sprint_weekly_per_category()
-		elif list_type == 'weekly-totals-sprint':
+		elif list_type == 'sprint-totals':
 			self.list_sprint_weekly_totals()
 		elif list_type == 'egg':
 			self.list_aggregate_results_report()
@@ -767,6 +841,10 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 
 	SQL_CATEGORY_FMTS = "substr('            ' || category_name, -12, 12)"
 
+	SQL_ACTIVITY_FMTS = "substr( \
+		activity_name || '                                                      ', \
+		0, 54)"
+
 	def setup_sql_day_of_week(self):
 		self.sql_day_of_week = (
 			"""
@@ -790,11 +868,7 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 		self.sql_categories = ''
 		self.sql_categories_ = ''
 		if self.cli_opts.categories:
-#			print('categories: %s' % (self.cli_opts.categories,))
 			assert(isinstance(self.cli_opts.categories, list))
-#
-# FIXME: extend, not append?
-#			self.sql_params.append(self.cli_opts.categories)
 			self.sql_params.extend(self.cli_opts.categories)
 
 			qmark_list = ','.join(['?' for x in self.cli_opts.categories])
@@ -816,7 +890,6 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 		self.sql_beg_date = ''
 		self.sql_beg_date_ = ''
 		if self.cli_opts.time_beg:
-#			print('time_beg: %s' % (self.cli_opts.time_beg,))
 			assert(not isinstance(self.cli_opts.time_beg, list))
 			self.sql_params.append(self.cli_opts.time_beg)
 			self.sql_beg_date = "AND facts.start_time >= datetime(?)"
@@ -832,7 +905,6 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 		self.sql_end_date = ''
 		self.sql_end_date_ = ''
 		if self.cli_opts.time_end:
-#			print('time_end: %s' % (self.cli_opts.time_end,))
 			assert(not isinstance(self.cli_opts.time_end, list))
 			self.sql_params.append(self.cli_opts.time_end)
 			self.sql_end_date = "AND facts.start_time < datetime(?)"
@@ -849,8 +921,6 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 		self.sql_activities = ''
 		self.sql_activities_ = ''
 		if self.cli_opts.activities:
-#			print('activities: %s' % (self.cli_opts.activities,))
-# FIXME: extend, not append?
 			assert(isinstance(self.cli_opts.activities, list))
 			self.sql_params.append(self.cli_opts.activities)
 			qmark_list = ','.join(['?' for x in self.cli_opts.activities])
@@ -894,8 +964,6 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 		self.sql_tag_names = ''
 		self.sql_tag_names_ = ''
 		if self.cli_opts.tags:
-#			print('tags: %s' % (self.cli_opts.tags,))
-# FIXME: extend, not append?
 			assert(isinstance(self.cli_opts.tags, list))
 			self.sql_params.append(self.cli_opts.tags)
 			qmark_list = ','.join(['?' for x in self.cli_opts.tags])
@@ -968,13 +1036,8 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 			log.info(sql_select)
 
 		if not Hamsterer.SQL_EXTERNAL:
-# !!!!!
 			log.fatal('sql_select: %s' % (sql_select,))
 			log.fatal('sql_params: %s' % (self.sql_params,))
-# WRONG ? substitution order!
-# Mon, 26 Sep 2016 12:28:41 CRIT pyoiler_argparse # sql_params: ['exosite', '2016-09-17', datetime.date(2016, 9, 27)]
-
-
 			try:
 				self.curs.execute(sql_select, self.sql_params)
 				print(self.curs.fetchall())
@@ -1075,6 +1138,7 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 		self.sql_params = []
 		self.str_params = {}
 		self.str_params['SQL_CATEGORY_FMTS'] = Hamsterer.SQL_CATEGORY_FMTS
+		self.str_params['SQL_ACTIVITY_FMTS'] = Hamsterer.SQL_ACTIVITY_FMTS
 
 	def list_all(self):
 		self.setup_sql_setup()
@@ -1110,9 +1174,11 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 		;
 		""" % self.str_params
 		print()
-		print('ALL FACTS')
-		#print('=========')
-		print('===============================================================')
+		header = 'ALL FACTS [%s]' % (self.list_type,)
+		print(header)
+		print('=' * len(header))
+		#print('===============================================================')
+		# =================================================================
 		self.print_output_generic_fcn_name(sql_select)
 
 	def setup_sql_fact_durations(self):
@@ -1148,7 +1214,8 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 				--, activities.search_name AS activity_name
 				, facts.activity_id
 				, facts.id AS fact_id
-				, tag_names
+				--, tag_names
+				, group_concat(DISTINCT tag_names) AS tag_names
 				, facts.description
 			--FROM facts
 			FROM (
@@ -1176,88 +1243,117 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 		self.str_params['SQL_FACT_DURATIONS'] = self.sql_fact_durations
 		self.str_params['SQL_DURATION'] = Hamsterer.SQL_DURATION
 
-	def list_gross_wrap(self, subtitle, cats, acts):
+	def list_gross_wrap(self, subtitle, cats, acts, tags):
 		print()
-		print('GROSS %s TOTALS' % (subtitle,))
-		print('===============================================================')
+		header = 'GROSS %s TOTALS [%s]' % (subtitle, self.list_type,)
+		print(header)
+		print('=' * len(header))
+		#print('===============================================================')
+		# =================================================================
 		self.list_weekly_wrap(
-			group_by_categories=cats, group_by_activities=acts,
+			group_by_categories=cats,
+			group_by_activities=acts,
+			group_by_facts_tags=tags,
+			gross_wrap=True,
 		)
+
+	def list_gross_per_tag(self):
+		self.list_gross_wrap('TAG', False, False, True)
 
 	def list_gross_per_activity(self):
-		self.list_gross_wrap('ACTIVITY', True, True)
+		self.list_gross_wrap('ACTIVITY', False, True, False)
+
+	def list_gross_per_activity_tag(self):
+		self.list_gross_wrap('ACTIVITY-TAG', False, True, True)
 
 	def list_gross_per_category(self):
-		self.list_gross_wrap('CATEGORY', True, False)
+		self.list_gross_wrap('CATEGORY', True, False, False)
 
 	def list_gross_totals(self):
-		self.list_gross_wrap('GROSS', False, False)
+		self.list_gross_wrap('GROSS', False, False, False)
 
 	def list_daily_per_tag(self):
-		self.list_daily_per_activity(
-			header='DAILY ACTIVITY-TAG TOTALS',
-			group_by='yrjul, activity_id, tag_names'
+		self.list_daily_per_tag_activity(
+			header_what='TAG',
+			group_by_categories=False,
+			group_by_activities=False,
+			group_by_facts_tags=True,
 		)
 
-	def list_daily_per_activity(self, header='DAILY ACTIVITY TOTALS', group_by='yrjul, activity_id'):
+	def list_daily_per_activity(self):
+		self.list_daily_per_tag_activity(
+			header_what='ACTIVITY',
+			group_by_categories=False,
+			group_by_activities=True,
+			group_by_facts_tags=False,
+		)
+
+	def list_daily_per_activity_tag(self):
+		self.list_daily_per_tag_activity(
+			header_what='ACTIVITY-TAG',
+			group_by_categories=False,
+			group_by_activities=True,
+			group_by_facts_tags=True,
+		)
+
+	def list_daily_per_category(self):
+		self.list_daily_per_tag_activity(
+			header_what='CATEGORY',
+			group_by_categories=True,
+			group_by_activities=False,
+			group_by_facts_tags=False,
+		)
+
+	def list_daily_totals(self):
+		self.list_daily_per_tag_activity(
+			header_what='TOTAL',
+			group_by_categories=False,
+			group_by_activities=False,
+			group_by_facts_tags=False,
+		)
+
+	def list_daily_per_tag_activity(
+		self,
+		header_what,
+		group_by_categories,
+		group_by_activities,
+		group_by_facts_tags
+	):
 		print()
-		#print('DAILY ACTIVITY TOTALS')
+		header = 'DAILY %s TOTALS [%s]' % (header_what, self.list_type,)
 		print(header)
-		#print('=====================')
-		print('===============================================================')
+		print('=' * len(header))
+		#print('===============================================================')
+		# =================================================================
 		self.setup_sql_fact_durations()
-		self.str_params['SQL_GROUP_BY'] = 'GROUP BY %s' % (group_by,)
+		self.str_params['SELECT_CATEGORIES'] = ''
+		self.str_params['SELECT_ACTIVITIES'] = ''
+		self.str_params['SELECT_FACTS_TAGS'] = ''
+		self.str_params['SQL_GROUP_BY'] = 'GROUP BY yrjul'
+		if group_by_categories or self.cli_opts.show_cats:
+			self.str_params['SELECT_CATEGORIES'] = ', %(SQL_CATEGORY_FMTS)s' % self.str_params
+			self.str_params['SQL_GROUP_BY'] += ', category_name'
+		if group_by_activities:
+			self.str_params['SELECT_ACTIVITIES'] = ', %(SQL_ACTIVITY_FMTS)s' % self.str_params
+			self.str_params['SQL_GROUP_BY'] += ', activity_id'
+		if group_by_facts_tags:
+			self.str_params['SELECT_FACTS_TAGS'] = ', tag_names'
+			self.str_params['SQL_GROUP_BY'] += ', tag_names'
+		if self.cli_opts.show_tags and not group_by_facts_tags:
+			self.str_params['SELECT_FACTS_TAGS'] = ', group_concat(DISTINCT tag_names) AS tag_names'
 		sql_select = """
 			SELECT
 				%(SQL_DAY_OF_WEEK)s
-				, strftime('%%Y-%%m-%%d', min(julianday(start_time)))
+				, strftime('%%Y-%%m-%%d', min(julianday(start_time))) AS start_time
 				, %(SQL_DURATION)s as duration
-				--, category_name
-				, %(SQL_CATEGORY_FMTS)s
-				, activity_name
-				, tag_names
+				%(SELECT_CATEGORIES)s
+				%(SELECT_ACTIVITIES)s
+				%(SELECT_FACTS_TAGS)s
 			FROM (%(SQL_FACT_DURATIONS)s) AS project_time
 			%(SQL_GROUP_BY)s
 			ORDER BY start_time, activity_name
 		""" % self.str_params
 		self.print_output_generic_fcn_name(sql_select, output_split_days=self.cli_opts.output_split_days)
-
-	def list_daily_per_category(self):
-		print()
-		print('DAILY CATEGORY TOTALS')
-		#print('=====================')
-		print('===============================================================')
-		self.setup_sql_fact_durations()
-		sql_select = """
-        SELECT
-			%(SQL_DAY_OF_WEEK)s
-            , strftime('%%Y-%%m-%%d', min(julianday(start_time))) AS start_time
-            , %(SQL_DURATION)s AS duration
-			, %(SQL_CATEGORY_FMTS)s
-			, tag_names
-        FROM (%(SQL_FACT_DURATIONS)s) AS project_time
-        GROUP BY yrjul, category_name
-        ORDER BY start_time, category_name
-		""" % self.str_params
-		self.print_output_generic_fcn_name(sql_select)
-
-	def list_daily_totals(self):
-		print()
-		print('DAILY TOTALS')
-		#print('============')
-		print('===============================================================')
-		self.setup_sql_fact_durations()
-		sql_select = """
-        SELECT
-			%(SQL_DAY_OF_WEEK)s
-            , strftime('%%Y-%%m-%%d', min(julianday(start_time)))
-            , %(SQL_DURATION)s AS duration
-			, tag_names
-        FROM (%(SQL_FACT_DURATIONS)s) AS project_time
-        GROUP BY yrjul
-        ORDER BY start_time
-		""" % self.str_params
-		self.print_output_generic_fcn_name(sql_select)
 
 	SQL_WEEK_START_JDAY = (
 		"""
@@ -1270,8 +1366,10 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 	def list_weekly_wrap(self,
 		group_by_categories=False,
 		group_by_activities=False,
+		group_by_facts_tags=False,
 		sql_julian_day_of_year=None,
 		week_num_unit='sprint_num',
+		gross_wrap=False,
 	):
 		group_bys = []
 		self.setup_sql_fact_durations()
@@ -1287,46 +1385,66 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 				% self.str_params
 			)
 			group_bys.append('julianweek')
-			header_cols = 'wkd|start_date|w|duration'
-			header_dash = '---|----------|-|--------'
+			header_cols = 'wkd|start_date|wk|duration'
+			header_dash = '---|----------|--|--------'
 		else:
 			# Don't group by a time interval.
 			self.str_params['SQL_JULIAN_WEEK_INNER'] = ''
 			self.str_params['SQL_JULIAN_WEEK_OUTER'] = ''
 			header_cols = 'wkd|start_date|duration'
 			header_dash = '---|----------|--------'
-		sql_select_extra = ''
-		sql_order_by_extra = ''
-		#if self.cli_opts.categories or self.cli_opts.query:
-		if group_by_activities:
-			group_bys.append('tag_names')
-		if group_by_categories:
+		outer_select_extra = ''
+		inner_select_extra = ''
+		order_bys = ['start_date']
+		if group_by_categories or self.cli_opts.show_cats:
 			group_bys.append('category_name')
-			sql_select_extra += ", %(SQL_CATEGORY_FMTS)s" % self.str_params
+			outer_select_extra += ", %(SQL_CATEGORY_FMTS)s" % self.str_params
+			inner_select_extra += ', category_name'
 			header_cols += '|category_nom'
 			header_dash += '|------------'
-			sql_order_by_extra += ', category_name'
+			if gross_wrap:
+				order_bys.insert(0, 'category_name')
+			else:
+				order_bys.append('category_name')
 		if group_by_activities:
 			group_bys.append('activity_name')
-			sql_select_extra += ', activity_name'
-			header_cols += '|activitiy_name'
-			header_dash += '|--------------'
-			sql_order_by_extra += ', activity_name'
-		if False: # Something like this?:
-			if self.cli_opts.activities or self.cli_opts.query:
-				group_bys.append('activity')
-			if self.cli_opts.tags or self.cli_opts.query:
-				group_bys.append('tags')
-			if self.cli_opts.query:
-				group_bys.append('query')
-		if group_by_activities:
-			sql_select_extra += ', tag_names'
+			outer_select_extra += ", %(SQL_ACTIVITY_FMTS)s" % self.str_params
+			inner_select_extra += ', activity_name'
+			if gross_wrap:
+				order_bys.insert(0, 'activity_name')
+			else:
+				order_bys.append('activity_name')
+			header_cols += '|activity_nom' + ' ' * (54 - 12 - 1)
+			header_dash += '|' + '-' * (54 - 1)
+		if group_by_facts_tags:
+			outer_select_extra += ', tag_names'
+			#outer_select_extra += ', group_concat(DISTINCT tag_names) AS tag_names'
+			# Not necessary:
+			#  inner_select_extra += ', tag_names'
+			if gross_wrap:
+				order_bys.insert(0, 'tag_names')
+			else:
+				order_bys.append('tag_names')
+			group_bys.append('tag_names')
 			header_cols += '|tag_names'
 			header_dash += '|---------'
+		if self.cli_opts.show_tags and not group_by_facts_tags:
+			outer_select_extra += ', tag_names'
+		#if False: # Something like this?:
+		#	if self.cli_opts.activities or self.cli_opts.query:
+		#		group_bys.append('activity')
+		#	if self.cli_opts.tags or self.cli_opts.query:
+		#		# 2017-08-23: Haha, why did I add top-level tag reports?
+		#		#  What, why is this 'tags' and not 'tag_names'??
+		#		group_bys.append('tags')
+		#	if self.cli_opts.query:
+		#		group_bys.append('query')
 		sql_group_by = "GROUP BY %s" % (', '.join(group_bys),) if group_bys else ''
-		self.str_params['SELECT_EXTRA'] = sql_select_extra
-		self.str_params['ORDER_BY_EXTRA'] = sql_order_by_extra
+		self.str_params['OUTER_EXTRA'] = outer_select_extra
+		self.str_params['INNER_EXTRA'] = inner_select_extra
 		self.str_params['SQL_GROUP_BY'] = sql_group_by
+		sql_order_by = "ORDER BY %s" % (', '.join(order_bys),) if order_bys else ''
+		self.str_params['SQL_ORDER_BY'] = sql_order_by
 		sql_select = """
 			SELECT
 				%(SQL_DAY_OF_WEEK)s
@@ -1338,19 +1456,20 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 				--, strftime('%%Y-%%m-%%d', start_week) AS start_week
 				%(SQL_JULIAN_WEEK_OUTER)s
 				, duration
-				%(SELECT_EXTRA)s
+				%(OUTER_EXTRA)s
 			FROM (
 				SELECT
 					min(julianday(start_time)) AS real_start_time
 					, julianday(start_time) - pseudo_week_offset AS start_time
 					%(SQL_JULIAN_WEEK_INNER)s
 					, %(SQL_DURATION)s AS duration
-					, tag_names
-					%(ORDER_BY_EXTRA)s
+					--, tag_names
+					, group_concat(DISTINCT tag_names) AS tag_names
+					%(INNER_EXTRA)s
 				FROM (%(SQL_FACT_DURATIONS)s) AS inner
 				%(SQL_GROUP_BY)s
 			) AS project_time
-			ORDER BY start_date %(ORDER_BY_EXTRA)s
+			%(SQL_ORDER_BY)s
 			""" % self.str_params
 		##self.print_output_generic_fcn_name(sql_select, use_header=True)
 		#print('wkd|start_date|w|duration|category_nom|activitiy_name|tag_names')
@@ -1369,54 +1488,72 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 		"""
 	)
 
-	def list_satsun_weekly_wrap(self, subtitle, cats, acts):
+	def list_satsun_weekly_wrap(self, subtitle, cats, acts, tags):
 		print()
-		print('SUN-SAT WEEKLY %s TOTALS' % (subtitle,))
-		#print('===============%s=======' % ('=' * len(subtitle),))
-		print('===============================================================')
+		header = 'SUN-SAT WEEKLY %s TOTALS [%s]' % (subtitle, self.list_type,)
+		print(header)
+		print('=' * len(header))
+		#print('===============================================================')
+		# =================================================================
 		sql_julian_day_of_year = Hamsterer.SQL_WEEK_START_DNUM_SATSUN
 		self.list_weekly_wrap(
 			group_by_categories=cats,
 			group_by_activities=acts,
+			group_by_facts_tags=tags,
 			sql_julian_day_of_year=sql_julian_day_of_year,
 			week_num_unit='week_num'
 		)
 
+	def list_satsun_weekly_per_tag(self):
+		self.list_satsun_weekly_wrap('TAG', False, False, True)
+
 	def list_satsun_weekly_per_activity(self):
-		self.list_satsun_weekly_wrap('ACTIVITY', True, True)
+		self.list_satsun_weekly_wrap('ACTIVITY', False, True, False)
+
+	def list_satsun_weekly_per_activity_tag(self):
+		self.list_satsun_weekly_wrap('ACTIVITY-TAG', False, True, True)
 
 	def list_satsun_weekly_per_category(self):
-		self.list_satsun_weekly_wrap('CATEGORY', True, False)
+		self.list_satsun_weekly_wrap('CATEGORY', True, False, False)
 
 	def list_satsun_weekly_totals(self):
-		self.list_satsun_weekly_wrap('TOTAL', False, False)
+		self.list_satsun_weekly_wrap('TOTAL', False, False, False)
 
 	SQL_WEEK_START_DNUM_SPRINT = (
 		"%s - julianday(strftime('%%Y-01-01', start_time))"
 		% (SQL_WEEK_START_JDAY,)
 	)
 
-	def list_sprint_weekly_wrap(self, subtitle, cats, acts):
+	def list_sprint_weekly_wrap(self, subtitle, cats, acts, tags):
 		print()
-		print('SPRINT WEEKLY %s TOTALS' % (subtitle,))
-		#print('==============%s=======' % ('=' * len(subtitle),))
-		print('===============================================================')
+		header = 'SPRINT WEEKLY %s TOTALS [%s]' % (subtitle, self.list_type,)
+		print(header)
+		print('=' * len(header))
+		#print('===============================================================')
+		# =================================================================
 		sql_julian_day_of_year = Hamsterer.SQL_WEEK_START_DNUM_SPRINT
 		self.list_weekly_wrap(
 			group_by_categories=cats,
 			group_by_activities=acts,
+			group_by_facts_tags=tags,
 			sql_julian_day_of_year=sql_julian_day_of_year,
 			week_num_unit='sprint_num'
 		)
 
+	def list_sprint_weekly_per_tag(self):
+		self.list_sprint_weekly_wrap('TAG', False, False, True)
+
 	def list_sprint_weekly_per_activity(self):
-		self.list_sprint_weekly_wrap('ACTIVITY', True, True)
+		self.list_sprint_weekly_wrap('ACTIVITY', False, True, False)
+
+	def list_sprint_weekly_per_activity_tag(self):
+		self.list_sprint_weekly_wrap('ACTIVITY-TAG', False, True, True)
 
 	def list_sprint_weekly_per_category(self):
-		self.list_sprint_weekly_wrap('CATEGORY', True, False)
+		self.list_sprint_weekly_wrap('CATEGORY', True, False, False)
 
 	def list_sprint_weekly_totals(self):
-		self.list_sprint_weekly_wrap('TOTAL', False, False)
+		self.list_sprint_weekly_wrap('TOTAL', False, False, False)
 
 	# 2016-11-13: Aggregate daily reporting.
 	# See also the Tempo timesheet script that consumes the output of this.
@@ -1438,6 +1575,7 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 				, activity_id
 				, GROUP_CONCAT(fact_id, ",") AS fact_ids
 				, tag_names
+				--, group_concat(DISTINCT tag_names) AS tag_names
 				, GROUP_CONCAT(desc_and_durn, ",") AS eggregate
 			FROM (
 				SELECT
@@ -1448,6 +1586,8 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 					, activity_name
 					, fact_id
 					, tag_names
+					-- NOPE: For some reason, using group_concat gives us 1 record.
+					--, group_concat(DISTINCT tag_names) AS tag_names
 					--, '"' || description || ' [' || duration || ']"' AS desc_and_durn
 					--, CASE
 					--	WHEN description IS NULL THEN '"Misc. [' || duration || ']"'
