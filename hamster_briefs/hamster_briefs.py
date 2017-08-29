@@ -1,6 +1,6 @@
 #!/usr/bin/env python3.5
 # (Using py3.5 for subprocess.run().)
-# Last Modified: 2017.08.23 /coding: utf-8
+# Last Modified: 2017.08.29 /coding: utf-8
 # Copyright: © 2016-2017 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -582,6 +582,7 @@ class HR_Argparser(pyoiler_argparse.ArgumentParser_Wrap):
 				self.setup_do_list_types_add('daily-activity-tag')
 				self.setup_do_list_types_add('daily-totals')
 				self.setup_do_list_types_add('sprint-category')
+				self.setup_do_list_types_add('sprint-activity-tag')
 				self.setup_do_list_types_add('sprint-totals')
 			elif list_type == 'daily':
 				self.setup_do_list_types_add('daily-totals')
