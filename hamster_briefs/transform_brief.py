@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Last Modified: 2017.08.21 /coding: utf-8
+# Last Modified: 2017.09.08 /coding: utf-8
 # Copyright: © 2016-2017 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -612,6 +612,18 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 
 	def validate_id_matches(self, entry, name_matches, tags_matches):
 		okay = True
+
+		# 2017-09-08: It's okay if the same ISSUE-XXX is specified more
+		# than once. This lets the user put the same ID in both the
+		# Activity name and in the Fact tag.
+		keynums = set()
+		for key, num in name_matches:
+			keynums.add((key, num))
+		for key, num in tags_matches:
+			keynums.add((key, num))
+		if len(keynums) <= 1:
+			return okay
+
 		# 2017-08-01: For now, not allowed to specify more than one issue key.
 		# Really just curious if I'll ever run into this and want to change it,
 		# say, make the tags issue key override the activity name key, or vice
