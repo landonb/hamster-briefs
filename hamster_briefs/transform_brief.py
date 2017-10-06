@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Last Modified: 2017.09.08 /coding: utf-8
+# Last Modified: 2017.10.06 /coding: utf-8
 # Copyright: © 2016-2017 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -520,8 +520,13 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 				# import xml.dom.minidom
 				# xml = xml.dom.minidom.parseString(req.text)
 				# pretty_xml_as_string = xml.toprettyxml()
+			except ET.ParseError as err:
+				if '<title>Log in - Exosite</title>' in req.text:
+					self.add_parse_err(entry, 'Logon Failed!')
+				else:
+					self.add_parse_err(entry, 'Parse error: Tempo Parse XML: %s' % (err,))
 			except Exception as err:
-				self.add_parse_err(entry, 'Tempo Parse XML: %s' % (err,))
+				self.add_parse_err(entry, 'Unknown error: Tempo Parse XML: %s' % (err,))
 			else:
 				self.parse_issue_meta(entry, tree, issue_key, project_key, item_number)
 		elif req.status_code != HTTPStatus.NOT_FOUND:
@@ -632,8 +637,12 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 			okay = False
 			self.add_parse_err(
 				entry,
-				'Issue Keys are in both activity name and keys: acty: %s / tags: %s' % (
-					name_matches, tags_matches,
+				'%s: acty: %s / tags: %s / on: %s / desc: %s' % (
+					'Issue Keys are in both activity name and keys',
+					name_matches,
+					tags_matches,
+					entry['year_month_day'],
+					entry['desctimes'],
 				)
 			)
 		elif len(name_matches) > 1:
