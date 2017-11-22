@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Last Modified: 2017.10.06 /coding: utf-8
+# Last Modified: 2017.11.21 /coding: utf-8
 # Copyright: © 2016-2017 Landon Bouma.
 #  vim:tw=0:ts=4:sw=4:noet
 
@@ -704,7 +704,12 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 		req = requests.post(
 			self.cli_opts.tempo_url + '/rest/tempo-timesheets/3/worklogs',
 			auth=(self.cli_opts.username, self.cli_opts.password),
-			data=json_encode(entry['payload']),
+			#data=json_encode(entry['payload']),
+			# 2017-11-21: I tried uploading an entry that had unicode in it and got:
+			#  UnicodeEncodeError: 'latin-1' codec can't encode character '\u25bc'
+			#    in position 219: Body ('▼') is not valid Latin-1.
+			#    Use body.encode('utf-8') if you want to send it encoded in UTF-8.
+			data=json_encode(entry['payload']).encode('utf-8'),
 			headers=headers,
 		)
 		# req.text/req.content is the server response, which
