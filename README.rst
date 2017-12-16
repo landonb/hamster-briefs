@@ -96,7 +96,7 @@ You can choose another path for the cloned git repos using ``--src``, e.g.,::
         -r https://raw.githubusercontent.com/landonb/hamster-briefs/master/requirements.txt \
         --src /path/to/a/different/source/checkout/src
 
-(I'll get this project on `PyPI <https://pypi.python.org/pypi>`__ 
+(I'll get this project on `PyPI <https://pypi.python.org/pypi>`__
 someday and then you won't have to do this dance.)
 
 Devs
