@@ -316,11 +316,11 @@ class HR_Argparser(pyoiler_argparse.ArgumentParser_Wrap):
 		self.cli_opts.cli_optsless = False
 
 		if self.cli_opts.be_verbose:
-			log.setLevel(pyoiler_logging.DEBUG)
+			pyoiler_logging.setLevel(pyoiler_logging.DEBUG)
 		elif self.cli_opts.show_sql:
-			log.setLevel(pyoiler_logging.INFO)
+			pyoiler_logging.setLevel(pyoiler_logging.INFO)
 		else:
-			log.setLevel(pyoiler_logging.WARNING)
+			pyoiler_logging.setLevel(pyoiler_logging.WARNING)
 
 		if self.cli_opts.week_starts:
 			try:
@@ -687,7 +687,9 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 			self.conn = sqlite3.connect(self.cli_opts.hamster_db_path)
 			self.curs = self.conn.cursor()
 		except Exception as err:
-			log.fatal('Report failed: %s' % (str(err),))
+			log.fatal('Report failed: %s [%s]' % (
+				str(err), self.cli_opts.hamster_db_path,
+			))
 			sys.exit(1)
 
 		self.check_integrity()
@@ -874,13 +876,13 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 
 			qmark_list = ','.join(['?' for x in self.cli_opts.categories])
 			self.sql_categories = (
-				#"AND categories.name IN (%s)" % (qmark_list,)
-				"AND categories.search_name IN (%s)" % (qmark_list,)
+				"AND categories.name IN (%s)" % (qmark_list,)
+				#"AND categories.search_name IN (%s)" % (qmark_list,)
 			)
 			name_list = ','.join(["'%s'" % (x,) for x in self.cli_opts.categories])
 			self.sql_categories_ = (
-				#" AND categories.name IN (%s)" % (name_list,)
-				" AND categories.search_name IN (%s)" % (name_list,)
+				" AND categories.name IN (%s)" % (name_list,)
+				#" AND categories.search_name IN (%s)" % (name_list,)
 			)
 		if not Hamsterer.SQL_EXTERNAL:
 			self.str_params['REPORT_CATEGORIES'] = self.sql_categories
@@ -1166,7 +1168,7 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 			JOIN categories ON (categories.id = activities.category_id)
 			LEFT OUTER JOIN fact_tags ON (facts.id = fact_tags.fact_id)
 			LEFT OUTER JOIN tags ON (fact_tags.tag_id = tags.id)
-			WHERE 1
+			WHERE NOT facts.deleted
 				%(REPORT_CATEGORIES)s
 				%(SQL_BEG_DATE)s
 				%(SQL_END_DATE)s
@@ -1209,8 +1211,8 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 				  THEN 24.0 * (julianday(facts.end_time) - julianday(facts.start_time))
 				  ELSE 24.0 * (julianday('now', 'localtime') - julianday(facts.start_time))
 				  END AS duration
-				, categories.search_name AS category_name
-				--, categories.name AS category_name
+				, categories.name AS category_name
+				--, categories.search_name AS category_name
 				, activities.name AS activity_name
 				--, activities.search_name AS activity_name
 				, facts.activity_id
@@ -1227,7 +1229,7 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 				JOIN activities ON (activities.id = facts.activity_id)
 				LEFT OUTER JOIN fact_tags ON (facts.id = fact_tags.fact_id)
 				LEFT OUTER JOIN tags ON (fact_tags.tag_id = tags.id)
-				WHERE 1
+				WHERE NOT facts.deleted
 					%(SQL_BEG_DATE)s
 					%(SQL_END_DATE)s
 					%(SQL_ACTS_AND_TAGS)s
@@ -1480,12 +1482,20 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 		#      tue|2016-02-09|6|   0.167|    personal|Bathroom|
 		self.print_output_generic_fcn_name(sql_select, use_header=False)
 
+	# FIXME/2018-07-31: Get the year from cli_opts, so from first fact in store.
 	SQL_WEEK_START_DNUM_SATSUN = (
 		# LATER/#XXX: Add clock time to stamp for self.cli_opts.day_starts
+
+		# FIXME/2018-07-31: Get the year from cli_opts, so from first fact in store.
+		#"""
+		#julianday(start_time)
+		#- julianday(strftime('%Y-01-01', start_time))
+		#+ CAST(strftime('%w', strftime('%Y-01-01', start_time)) AS integer)
+		#"""
 		"""
 		julianday(start_time)
-		- julianday(strftime('%Y-01-01', start_time))
-		+ CAST(strftime('%w', strftime('%Y-01-01', start_time)) AS integer)
+		- julianday(strftime('1977-01-01'))
+		+ CAST(strftime('%w', strftime('1977-01-01')) AS integer)
 		"""
 	)
 
@@ -1521,7 +1531,9 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 		self.list_satsun_weekly_wrap('TOTAL', False, False, False)
 
 	SQL_WEEK_START_DNUM_SPRINT = (
-		"%s - julianday(strftime('%%Y-01-01', start_time))"
+		# FIXME/2018-07-31: Get the year from cli_opts, so from first fact in store.
+		#"%s - julianday(strftime('%%Y-01-01', start_time))"
+		"%s - julianday(strftime('1997-01-01'))"
 		% (SQL_WEEK_START_JDAY,)
 	)
 

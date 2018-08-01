@@ -84,6 +84,7 @@ import sys
 import datetime
 from http import HTTPStatus
 import re
+import subprocess
 import xml.etree.ElementTree as ET
 
 import json
@@ -121,6 +122,9 @@ import hamster_briefs.version_hamster
 #NUM_ENTRIES_LIMIT_ASK = 20
 # 2017-08-01: This should be relaxed... I often have way more...
 NUM_ENTRIES_LIMIT_ASK = 50
+
+
+# ***
 
 class TxTl_Argparser(pyoiler_argparse.ArgumentParser_Wrap):
 
@@ -170,6 +174,8 @@ class TxTl_Argparser(pyoiler_argparse.ArgumentParser_Wrap):
 		ok = pyoiler_argparse.ArgumentParser_Wrap.verify(self)
 
 		return ok
+
+# ***
 
 class Transformer(pyoiler_argparse.Simple_Script_Base):
 
@@ -294,6 +300,7 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 		# Do 2 passes, so in case we cannot parse something or otherwise
 		# fail, we won't have sent any POST requests to JIRA.
 		self.issue_meta = {}
+		self.resolutions = {}
 		self.parse_errs = []
 		self.failed_reqs = []
 		self.update_entries(forreal=False)
@@ -356,24 +363,33 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 		if not forreal:
 			self.prepare_entries()
 		else:
+			self.re_open_issues_maybe()
 			for entry in self.entries:
 				#self.print_post_req(entry)
 				self.post_tempo_payload(entry)
+			self.close_re_opened_issues()
 
 	def prepare_entries(self):
 		total_time_spent = 0
+		daily_time_spent = {}
 		for entry in self.entries:
 			# FIXME/2017-08-02: entry should maybe be its own class...
 			self.ensure_defaults(entry)
-			self.print_entry_brief(entry)
+#			self.print_entry_brief(entry)
 			if not self.ensure_entry_keys(entry):
 				continue
 			project_id, issue_key = self.locate_entry_keys(entry)
 			if project_id and issue_key:
 				self.prepare_tempo_payload(entry)
+				self.query_tempo_resolution(entry)
 				#self.print_entry_payload_brief(entry)
-				total_time_spent += int(entry['payload']['timeSpentSeconds'])
-		self.print_total_time(total_time_spent)
+				secs = int(entry['payload']['timeSpentSeconds'])
+				total_time_spent += secs
+				ymd = entry['year_month_day']
+				daily_time_spent.setdefault(ymd, 0)
+				daily_time_spent[ymd] += secs
+			self.print_entry_brief(entry)
+		self.print_total_time(total_time_spent, daily_time_spent)
 		self.die_on_parse_errs()
 
 	ILLEGAL_KEYS = [
@@ -382,6 +398,7 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 		'project_id',
 		'issue_key',
 		'issue_id',
+		'issue_resolution',
 		# The Tempo POST payload.
 		'payload',
 	]
@@ -400,6 +417,8 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 		entry.setdefault('year_month_day', '')
 		entry.setdefault('time_spent', '')
 		entry.setdefault('desctimes', '')
+#		entry.setdefault('issue_key', '')
+#		entry.setdefault('issue_resolution', '')
 
 	def ensure_item_key_field(self, entry):
 		# We need the item key (e.g., PROJ-123) which can be in either
@@ -723,6 +742,77 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 				% (req.status_code, req.text,)
 			)
 
+	# ***
+
+	def query_tempo_resolution(self, entry):
+		if entry['issue_key'] in self.resolutions.keys():
+			entry['issue_resolution'] = self.resolutions[entry['issue_key']]
+
+		# FIXME: 2018-08-01 05:45: Hahaha. Why am I using jira tool and not,
+		#        say, accessing API directly (i.e., via requests.get)?
+		proc = subprocess.Popen(
+			['jira', 'view', entry['issue_key'], '-t', 'debug',],
+			stdout=subprocess.PIPE,
+		)
+		(stdout_data, stderr_data) = proc.communicate()
+		resp = json_decode(stdout_data.decode())
+		entry['issue_resolution'] = ''
+		if resp['fields']['resolution']:
+			entry['issue_resolution'] = resp['fields']['resolution']['name']
+			self.resolutions[entry['issue_key']] = entry['issue_resolution']
+
+	def re_open_issues_maybe(self):
+		for issue_key, _resolution in self.resolutions.items():
+			self.re_open_issue(issue_key)
+
+	def re_open_issue(self, issue_key):
+		# FIXME: 2018-08-01 05:45: Hahaha. Why am I using jira tool and not,
+		#        say, accessing API directly (i.e., via requests.post)?
+		proc = subprocess.Popen(
+			['jira', 'in-progress', issue_key,],
+			stdout=subprocess.PIPE,
+		)
+		(stdout_data, stderr_data) = proc.communicate()
+		# FIXME: What about checking err code nonzero instead of parsing text??
+		stdout_data = stdout_data.decode() if stdout_data else ''
+		stderr_data = stderr_data.decode() if stderr_data else ''
+		if not stdout_data.startswith('OK {}'.format(issue_key)):
+#
+			import pdb;pdb.set_trace()
+			
+			print(
+				"ERROR: Could not re-open issue: {}: {} / {}".format(
+					issue_key, stdout_data, stderr_data,
+				)
+			)
+
+	def close_re_opened_issues(self):
+		for issue_key, resolution in self.resolutions.items():
+			self.close_re_opened_issue(issue_key, resolution)
+
+	def close_re_opened_issue(self, issue_key, resolution):
+		# FIXME: 2018-08-01 05:45: Hahaha. Why am I using jira tool and not,
+		#        say, accessing API directly (i.e., via requests.post)?
+		proc = subprocess.Popen(
+			[
+				'jira',
+				'close',
+				'--resolution',
+				resolution,
+				issue_key,
+			],
+			stdout=subprocess.PIPE,
+		)
+		(stdout_data, stderr_data) = proc.communicate()
+		# FIXME: What about checking err code nonzero instead of parsing text??
+		stdout_data = stdout_data.decode()
+		if not stdout_data.startswith('OK {}'.format(issue_key)):
+			print(
+				"ERROR: Could not close re-opened issue: {}: {} / {}".format(
+					issue_key, stdout_data, stderr_data.decode(),
+				)
+			)
+
 	# *** Deadly fcns.
 
 	def die_on_parse_errs(self):
@@ -816,30 +906,49 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 
 	def print_entry_brief(self, entry):
 		self.print_splitter()
-		print("Entry: %s (%s) / tags: %s/ %s" % (
-			entry['activity_name'] or '[Nameless Activity]',
-			entry['fact_ids'] or '[IDless Facts]',
-			entry['tags'] or '[Tagless Facts]',
+		print("Entry: %s / %s / tags: %s" % (
 			entry['year_month_day'],
+			entry['issue_key'] or entry['activity_name'] or '[Nameless Activity]',
+			#entry['fact_ids'] or '[No ref. PKs]',  # (lb): Not at all important.
+			entry['tags'] or '<no tags>',
 		))
+		if entry['issue_resolution']:
+			print("  Resolution: %s" % (
+				#entry['payload']['issue']['key'],
+				entry['issue_resolution'],
+			))
 
 	def print_entry_payload_brief(self, entry):
 		tempo_payload = entry['payload']
 		json_encode(tempo_payload)
 		#print(tempo_payload)
-		print("Entry: date: %s / time: %s / %s (%s)" % (
-			tempo_payload['dateStarted'],
-			tempo_payload['timeSpentSeconds'],
-			entry['activity_name'] or '[Nameless Activity]',
-			entry['fact_ids'] or '[IDless Facts]',
+		if False:
+			print("  %s / Date: %s / Time: %s / %s (%s)" % (
+				entry['payload']['issue']['key'],
+				tempo_payload['dateStarted'],
+				tempo_payload['timeSpentSeconds'],
+				entry['activity_name'] or '[Nameless Activity]',
+				entry['fact_ids'] or '[IDless Facts]',
+			))
+		print("  %s / Resolution: %s" % (
+			entry['payload']['issue']['key'],
+			entry['issue_resolution'],
 		))
 
-	def print_total_time(self, total_time_spent):
+	def print_total_time(self, total_time_spent, daily_time_spent={}):
 		self.print_splitter()
 		print(
-			"fact times: total_time_spent: %s / total_hrs: %.2f"
-			% (total_time_spent, total_time_spent / 60.0 / 60.0,)
+			"Total Fact time: %.2f hours"
+			% (total_time_spent / 60.0 / 60.0,)
 		)
+
+		dailies = []
+		for date in sorted(daily_time_spent.keys()):
+			dailies.append("  {}: {:.2f} hrs.".format(
+				date, daily_time_spent[date] / 60.0 / 60.0,
+			))
+		#print(' / '.join(dailies))
+		print("\n".join(dailies))
 
 	def print_post_req(self, entry):
 		print('POST: Key: %s / Date: %s / Time: %s' % (
@@ -860,9 +969,13 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 		print("  %s/secure/TempoUserBoard!timesheet.jspa" % (self.cli_opts.tempo_url,))
 		print()
 
+# ***
+
+
 def main():
 	hr = Transformer()
 	hr.go()
+
 
 if (__name__ == '__main__'):
 	main()
