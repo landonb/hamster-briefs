@@ -92,6 +92,8 @@ setup(
         #'Programming Language :: Python :: 3.4',
         # Needs py3.5's subprocess.run.
         'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
     ],
 
     # What does your project relate to?
