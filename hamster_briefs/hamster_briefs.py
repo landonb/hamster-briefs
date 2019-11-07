@@ -728,7 +728,10 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 			print('  %s --help' % (sys.argv[0],))
 
 	def check_integrity(self):
-		sql_select = "SELECT COUNT(*) FROM facts WHERE end_time IS NULL"
+		facts_still_open = """
+			FROM facts WHERE end_time IS NULL AND NOT deleted
+		"""
+		sql_select = "SELECT COUNT(*) {}".format(facts_still_open)
 		try:
 			self.curs.execute(sql_select)
 			count = self.curs.fetchone()
@@ -737,7 +740,7 @@ class Hamsterer(pyoiler_argparse.Simple_Script_Base):
 					'DATA ERROR: Unexpected count: %s / query: %s'
 					% (count[0], sql_select,)
 				)
-				sql_select = "SELECT * FROM facts WHERE end_time IS NULL"
+				sql_select = "SELECT * {}".format(facts_still_open)
 				self.print_output_generic_fcn_name(sql_select)
 				print('You must fix one or more records to continue.')
 				sys.exit(1)
