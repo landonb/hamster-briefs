@@ -4,6 +4,10 @@ HAMSTER BRIEFS
 
 *hamster.db time reporting and summarization tool.*
 
+*Notice: Checkout ``457ba297`` for hamster support.
+The latest sources were upgraded to run against the
+(ever-so-slightly different) dob database.*
+
 Usage
 =====
 
