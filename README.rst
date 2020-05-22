@@ -2,6 +2,16 @@
 HAMSTER BRIEFS
 ##############
 
+.. |dob| replace:: ``dob``
+.. _dob: https://github.com/hotoffthehamster/dob
+
+*This project is deprecated!*
+
+Please upgrade to |dob|_, it's got stellar reporting capabilities baked in!
+
+Overview
+========
+
 *hamster.db time reporting and summarization tool.*
 
 *Notice: Checkout ``457ba297`` for hamster support.
