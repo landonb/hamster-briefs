@@ -115,7 +115,10 @@ setup(
         'pyoiler_argparse',
         'pyoiler_inflector',
         'pyoiler_logging',
-        'pyoiler_timedelta',
+
+        # Imports as `pedantic_timedelta`.
+        'human-friendly_pedantic-timedelta == 2.0.0',
+
         'termcolor',
     ],
 
