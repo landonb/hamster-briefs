@@ -540,7 +540,7 @@ class Transformer(pyoiler_argparse.Simple_Script_Base):
 				# xml = xml.dom.minidom.parseString(req.text)
 				# pretty_xml_as_string = xml.toprettyxml()
 			except ET.ParseError as err:
-				if '<title>Log in - Exosite</title>' in req.text:
+				if '<title>Log in - ' in req.text:
 					self.add_parse_err(entry, 'Logon Failed!')
 				else:
 					self.add_parse_err(entry, 'Parse error: Tempo Parse XML: %s' % (err,))
